@@ -22,7 +22,10 @@
     .face button{width:38px;height:38px;border-radius:50%;border-color:#314046;background:#0e1518;color:#f0c85a;box-shadow:inset 0 0 0 3px #263238,3px 3px 0 #0b1114;font-size:18px}
     #tri{grid-column:2;grid-row:1;color:#e6cf57}#square{grid-column:1;grid-row:2;color:#79b7e8}#act{grid-column:3;grid-row:2;color:#69d183}#cross{grid-column:2;grid-row:3;color:#e45f42}
     .small{font-size:11px;color:#8ea09c}
-    @media(max-width:700px){.wrap{grid-template-rows:48px 1fr calc(244px + env(safe-area-inset-bottom))}header{gap:8px;padding:0 10px}.brand{font-size:13px}.status{display:none}.hint{display:none}.bar{grid-template-rows:62px 1fr;gap:8px;padding:8px 12px calc(20px + env(safe-area-inset-bottom));background:linear-gradient(180deg,rgba(16,24,28,.88),rgba(16,24,28,.96));}.msg{font-size:13px;padding:0 12px}.controls{grid-template-columns:128px minmax(82px,1fr) 138px;gap:4px;align-items:center}.stick{width:120px;height:120px;border-color:rgba(133,158,168,.48);background:radial-gradient(circle at 36% 34%,rgba(118,136,144,.44),rgba(18,25,29,.38) 72%);box-shadow:inset 0 0 0 11px rgba(34,45,50,.48),0 10px 22px rgba(0,0,0,.32)}.stick::before{width:60px;height:60px;background:rgba(13,18,21,.42);box-shadow:inset 0 0 0 7px rgba(80,98,106,.42)}.stick-knob{width:54px;height:54px;border-color:rgba(150,170,178,.78);background:radial-gradient(circle at 35% 30%,rgba(140,156,164,.90),rgba(55,67,73,.82) 62%,rgba(12,17,20,.82));box-shadow:0 7px 16px rgba(0,0,0,.34)}.face{grid-template-columns:46px 46px 46px;grid-template-rows:44px 44px 44px;gap:3px}.face button{width:44px;height:44px;font-size:20px;background:rgba(14,21,24,.78);box-shadow:inset 0 0 0 4px rgba(38,50,56,.88),0 8px 14px rgba(0,0,0,.32)}.home-key{width:90px;height:42px;font-size:13px;padding:0;background:rgba(38,52,58,.88)}}
+    .safe-nav{position:fixed;z-index:60;left:12px;top:64px;display:flex;gap:8px;pointer-events:auto}
+    .safe-nav button{height:36px;padding:0 12px;border-color:#304247;background:#f0c85a;color:#172126;font-size:12px;box-shadow:4px 4px 0 #0b1114}
+    .safe-nav .home{background:#26343a;color:#f0c85a}
+    @media(max-width:700px){.wrap{grid-template-rows:48px 1fr calc(244px + env(safe-area-inset-bottom))}header{gap:8px;padding:0 10px}.brand{font-size:13px}.status{display:none}.hint{display:none}.safe-nav{top:56px;left:10px;right:10px}.safe-nav button{height:38px;padding:0 10px;font-size:12px;box-shadow:3px 3px 0 #0b1114}.bar{grid-template-rows:62px 1fr;gap:8px;padding:8px 12px calc(20px + env(safe-area-inset-bottom));background:linear-gradient(180deg,rgba(16,24,28,.88),rgba(16,24,28,.96));}.msg{font-size:13px;padding:0 12px}.controls{grid-template-columns:128px minmax(82px,1fr) 138px;gap:4px;align-items:center}.stick{width:120px;height:120px;border-color:rgba(133,158,168,.48);background:radial-gradient(circle at 36% 34%,rgba(118,136,144,.44),rgba(18,25,29,.38) 72%);box-shadow:inset 0 0 0 11px rgba(34,45,50,.48),0 10px 22px rgba(0,0,0,.32)}.stick::before{width:60px;height:60px;background:rgba(13,18,21,.42);box-shadow:inset 0 0 0 7px rgba(80,98,106,.42)}.stick-knob{width:54px;height:54px;border-color:rgba(150,170,178,.78);background:radial-gradient(circle at 35% 30%,rgba(140,156,164,.90),rgba(55,67,73,.82) 62%,rgba(12,17,20,.82));box-shadow:0 7px 16px rgba(0,0,0,.34)}.face{grid-template-columns:46px 46px 46px;grid-template-rows:44px 44px 44px;gap:3px}.face button{width:44px;height:44px;font-size:20px;background:rgba(14,21,24,.78);box-shadow:inset 0 0 0 4px rgba(38,50,56,.88),0 8px 14px rgba(0,0,0,.32)}.home-key{width:90px;height:42px;font-size:13px;padding:0;background:rgba(38,52,58,.88)}}
   </style>
 </head>
 <body>
@@ -41,6 +44,10 @@
       </div>
     </div>
   </div>
+</div>
+<div class="safe-nav" aria-label="安全返回导航">
+  <button id="safeReturnBtn" type="button">← 返回</button>
+  <button id="safeHomeBtn" class="home" type="button">⌂ 公司首页</button>
 </div>
 <script>
 const canvas=document.querySelector('#game'),msgEl=document.querySelector('#msg'),statusEl=document.querySelector('#status'),fpsEl=document.querySelector('#fps');
@@ -941,6 +948,8 @@ bindTap('#home',goCompany);
 bindTap('#tri',()=>{msgEl.textContent='△：菜单键预留。后续会放背包、地图或任务。'});
 bindTap('#square',()=>{msgEl.textContent='□：交互扩展键预留。后续可用于查看物品详情。'});
 bindTap('#cross',safeBack);
+bindTap('#safeReturnBtn',safeBack);
+bindTap('#safeHomeBtn',goCompany);
 function setStick(x,y){
   stick.x=x;stick.y=y;
   const knob=document.querySelector('#stickKnob');

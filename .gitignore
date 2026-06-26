@@ -20,6 +20,7 @@ tools/frp/
 # Safety backups created during repair work
 before-restore-*/
 pre-p0-*/
+backups/
 panic-current-broken-*/
 restore-safety-*/
 rollback-current-*/

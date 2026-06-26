@@ -15,18 +15,26 @@
     .back{height:34px;padding:0 10px;font-size:12px;white-space:nowrap}
     button:active{transform:translateY(3px);box-shadow:0 2px 0 #835f1d}
     .hint{position:absolute;left:12px;bottom:12px;padding:8px 10px;background:#172126d8;color:#f7f4ea;border:2px solid #40565c;font-size:12px;line-height:1.5}
+    .safe-nav{position:absolute;z-index:20;left:12px;top:12px;display:flex;gap:8px}
+    .safe-nav button{height:34px;padding:0 10px;font-size:12px;border-color:#0b1114;background:#f2c14e;color:#172026;box-shadow:0 4px 0 #835f1d}
+    .safe-nav .home{background:#172126;color:#f2c14e;border-color:#40565c}
     @media(min-width:720px){.pad{display:none}header{height:52px}.hint{font-size:13px}}
+    @media(max-width:700px){header .back{display:none}.safe-nav{left:10px;top:10px}.safe-nav button{height:38px;font-size:12px}}
   </style>
 </head>
 <body>
 <div class="game">
   <header><button class="back" id="back">← 返回宇宙广场</button><div><b>MUSHROOM</b> RUNNER</div><div class="hud"><span id="coins">金币 0</span><span id="lives">生命 3</span><span id="time">时间 120</span></div></header>
-  <div class="wrap"><canvas id="c"></canvas><div class="hint">方向键 / A D 移动，空格跳跃。手机用下方按钮。踩怪、吃金币、到达旗帜。</div></div>
+  <div class="wrap"><canvas id="c"></canvas><div class="safe-nav" aria-label="安全返回导航"><button id="safeBack" type="button">← 宇宙广场</button><button id="safeHome" class="home" type="button">⌂ 公司首页</button></div><div class="hint">方向键 / A D 移动，空格跳跃。手机用下方按钮。踩怪、吃金币、到达旗帜。</div></div>
   <div class="pad"><button id="left">←</button><button id="jump">跳</button><button id="right">→</button></div>
 </div>
 <script>
 const canvas=document.querySelector('#c'),ctx=canvas.getContext('2d');
-document.querySelector('#back').addEventListener('click',()=>{location.href='/projects/companyverse/index.html'});
+function returnHub(){location.href='/projects/companyverse/index.html'}
+function returnCompany(){location.href='/'}
+document.querySelector('#back').addEventListener('click',returnHub);
+document.querySelector('#safeBack').addEventListener('click',returnHub);
+document.querySelector('#safeHome').addEventListener('click',returnCompany);
 const keys={left:false,right:false,jump:false},tile=32,gravity=.62;
 let W=0,H=0,cam=0,last=0,coins=0,lives=3,timeLeft=120,win=false,deadTimer=0;
 const level=[
@@ -99,7 +107,7 @@ function draw(){
   if(win){ctx.fillStyle='#172126dd';ctx.fillRect(0,0,W,H);ctx.fillStyle='#f7f4ea';ctx.font='700 26px Microsoft YaHei';ctx.textAlign='center';ctx.fillText('通关！Mushroom Runner v0.1',W/2,H/2);ctx.font='16px Microsoft YaHei';ctx.fillText('下一版：更多关卡、道具、敌人和编辑器',W/2,H/2+34)}
 }
 function loop(t){const dt=t-last||16;last=t;update(dt);draw();requestAnimationFrame(loop)}requestAnimationFrame(loop);
-addEventListener('keydown',e=>{if(e.key==='Escape'||e.key==='Backspace'){location.href='/projects/companyverse/index.html';return}if(e.key==='ArrowLeft'||e.key==='a')keys.left=true;if(e.key==='ArrowRight'||e.key==='d')keys.right=true;if(e.code==='Space'||e.key==='w'||e.key==='ArrowUp')keys.jump=true});
+addEventListener('keydown',e=>{if(e.key==='Escape'||e.key==='Backspace'){returnHub();return}if(e.key.toLowerCase()==='h'){returnCompany();return}if(e.key==='ArrowLeft'||e.key==='a')keys.left=true;if(e.key==='ArrowRight'||e.key==='d')keys.right=true;if(e.code==='Space'||e.key==='w'||e.key==='ArrowUp')keys.jump=true});
 addEventListener('keyup',e=>{if(e.key==='ArrowLeft'||e.key==='a')keys.left=false;if(e.key==='ArrowRight'||e.key==='d')keys.right=false;if(e.code==='Space'||e.key==='w'||e.key==='ArrowUp')keys.jump=false});
 function bind(id,key){const b=document.querySelector(id);['touchstart','mousedown'].forEach(ev=>b.addEventListener(ev,e=>{e.preventDefault();keys[key]=true}));['touchend','touchcancel','mouseup','mouseleave'].forEach(ev=>b.addEventListener(ev,e=>{e.preventDefault();keys[key]=false}))}
 bind('#left','left');bind('#right','right');bind('#jump','jump');
