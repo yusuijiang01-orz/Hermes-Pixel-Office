@@ -2007,6 +2007,16 @@ document.querySelector('#gameJump')?.addEventListener('pointerdown',()=>{gameJum
 document.querySelector('#gameJump')?.addEventListener('pointerup',()=>{gameJumpPressed=false});
 setupJoystick(canvas);
 let _loadingCleared=false;
+function stableOfficeSize(){
+  return {
+    w:Math.max(320,canvas.clientWidth||canvas.width||window.innerWidth||960),
+    h:Math.max(520,canvas.clientHeight||canvas.height||window.innerHeight||720)
+  };
+}
+function officeSpawnFor(id){
+  const size=stableOfficeSize(),spot=spots[id]||[.5,.5];
+  return {x:spot[0]*size.w+46,y:spot[1]*size.h+48};
+}
 function applyServerState(data,source='poll'){
   if(data.error)throw Error(data.error);
   if(!_loadingCleared){_loadingCleared=true;window._corgiLoadingDone?.()}
@@ -2016,7 +2026,21 @@ function applyServerState(data,source='poll'){
   document.querySelector('#sync').textContent=(source==='sse'?'长连接实时 · ':'实时连接 · ')+new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
   document.querySelector('#world').textContent=`${data.world?.clock||''} · ${data.world?.weather||''} · ${data.world?.label||''}`;
   document.querySelector('#project').textContent='当前项目：'+(data.board?.name||'暂无');
-  data.agents.forEach((d,i)=>{if(!agents[d.id])agents[d.id]={...d,x:canvas.clientWidth*spots[d.id][0]+46,y:canvas.clientHeight*spots[d.id][1]+48,mode:'working',seed:i*2};Object.assign(agents[d.id],d)});
+  data.agents.forEach((d,i)=>{
+    if(!agents[d.id]){
+      const p=officeSpawnFor(d.id);
+      agents[d.id]={...d,x:p.x,y:p.y,mode:'working',seed:i*2,_spawned:true};
+    }
+    Object.assign(agents[d.id],d);
+    const a=agents[d.id];
+    const looksLikeBadBoot=(!a._spawned&&a.x<70&&a.y<70)||!Number.isFinite(a.x)||!Number.isFinite(a.y);
+    if(looksLikeBadBoot){
+      const p=officeSpawnFor(d.id);
+      a.x=p.x;
+      a.y=p.y;
+    }
+    a._spawned=true;
+  });
   if(chatMode==='group')setChatMode('group');else if(selected)select(selected,false);else select('planner',false);
   renderMobileShell()
 }
