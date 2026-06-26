@@ -1602,7 +1602,7 @@ function renderMobileChatScreen(){
     const threadKey=`private:${agent?.id||'none'}`;
     title.textContent=agent?.short||'私聊';
     subtitle.textContent=agent?`${agent.role} · ${activityText({...agents[agent.id],...agent})}`:'连接中';
-    const items=all.filter(msg=>msg.mode!=='group'&&msg.agent===agent?.id);
+    const items=all.filter(msg=>msg.mode!=='group'&&msg.agent===agent?.id).sort((a,b)=>(a.created||0)-(b.created||0));
     captureScroll(body,'mobile',threadKey);
     body.innerHTML=items.length?items.map(msg=>`<div class="bubble mine">${messageTextHtml(msg.prompt,msg.attachments)}<span class="bubble-time">${msgTime(msg.created)}</span></div><div class="bubble theirs ${msg.reply?'':'pending'}"><span class="bubble-name">${esc(agent.short||agent.name||'员工')}</span>${esc(compactText(msg.reply||'正在处理并组织回复...',400))}</div>`).join(''):'<div class="empty">还没有私聊。<br>先去戳一下这位员工。</div>';
     restoreScroll(body,'mobile',threadKey,!items.length);
@@ -1619,7 +1619,12 @@ function renderMobileChatScreen(){
   });
   if(!groups.size){body.innerHTML='<div class="empty">群里还很安静。<br>发个话题试试。</div>';return}
   captureScroll(body,'mobile',threadKey);
-  body.innerHTML=[...groups.entries()].map(([key,group])=>{
+  const orderedGroups=[...groups.entries()].sort((a,b)=>{
+    const at=Math.min(...a[1].map(msg=>msg.created||0));
+    const bt=Math.min(...b[1].map(msg=>msg.created||0));
+    return at-bt;
+  });
+  body.innerHTML=orderedGroups.map(([key,group])=>{
     group.sort((a,b)=>(a.created||0)-(b.created||0)||(a.round||1)-(b.round||1));
     const head=group[0]?.origin==='boss'?`<div class="bubble mine">${messageTextHtml(group[0].prompt,group[0].attachments)}<span class="bubble-time">${msgTime(group[0].created)}</span></div>`:'';
     const replies=group.map(msg=>{
@@ -1644,6 +1649,7 @@ function openMobileChatPrivate(id){
   mobileState.chatOpen=true;
   mobileState.chatMode='private';
   mobileState.agent=id;
+  scrollState.mobile.key='';
   closeMentionMenu('mobile');
   selected=id;
   setChatMode('private');
@@ -1654,6 +1660,7 @@ function openMobileChatGroup(conversation='team'){
   mobileState.chatOpen=true;
   mobileState.chatMode='group';
   mobileState.conversation=conversation;
+  scrollState.mobile.key='';
   closeMentionMenu('mobile');
   setChatMode('group');
   renderMobileShell()
