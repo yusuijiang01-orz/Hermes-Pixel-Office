@@ -1041,17 +1041,29 @@ document.getElementById('editFab').addEventListener('click',()=>{
   document.getElementById('editToggle').click();
 });
 document.getElementById('editCancel').addEventListener('click',()=>{
-  setEditMode(false);
   collisionWarning='';
-  scenePositions={};loadScenePositions();
-  document.querySelector('#sceneTip').textContent='点击员工聊天，点工位看他忙啥';
+  if(editSelectedStart?.id){
+    scenePositions[editSelectedStart.id]={x:editSelectedStart.x,y:editSelectedStart.y};
+    editSelected=null;
+    editSelectedStart=null;
+    editDragging=false;
+    syncMobileEditUi();
+    document.querySelector('#sceneTip').textContent='已撤销当前物品移动';
+    return;
+  }
+  setEditMode(false);
+  document.querySelector('#sceneTip').textContent='已退出编辑模式';
 });
 document.getElementById('editSave').addEventListener('click',async()=>{
+  if(selectionBlocked()){
+    document.querySelector('#sceneTip').textContent='当前位置会重叠，先移到可放置区域再保存';
+    return;
+  }
   saveScenePositionsToStorage();
   try{
     const resp=await fetch('/api/scene/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scene:scenePositions})});
     if(resp.ok){
-      document.querySelector('#sceneTip').textContent='布局已存档。刷新页面就能看到新办公室';
+      document.querySelector('#sceneTip').textContent='布局已保存，当前画面已实时生效';
       collisionWarning='';
     }else{
       document.querySelector('#sceneTip').textContent='保存没成功，可能是服务器去摸鱼了。稍后再试';
@@ -1302,7 +1314,7 @@ function updateRoomUI(){
     else if(currentRoom==='boss')b.classList.remove('active');
   });
 }
-function frame(t){const dt=Math.min((t-lastFrame)/1000||0,.1);lastFrame=t;const w=canvas.clientWidth,h=canvas.clientHeight;ctx.clearRect(0,0,w,h);const everyoneHome=state?.world?.phase==='home'&&Object.values(agents).every(a=>['home','home_remote'].includes(a.presence));neighborhood=cameraMode==='home'||(cameraMode==='auto'&&everyoneHome);document.querySelector('#homeSwitcher').classList.toggle('visible',neighborhood);if(currentRoom==='office')document.querySelector('#sceneTip').textContent=neighborhood?'切换住宅查看员工，下方可直接私聊':'点击员工聊天，点工位看他忙啥';// Room navigation
+function frame(t){const dt=Math.min((t-lastFrame)/1000||0,.1);lastFrame=t;const w=canvas.clientWidth,h=canvas.clientHeight;ctx.clearRect(0,0,w,h);const everyoneHome=state?.world?.phase==='home'&&Object.values(agents).every(a=>['home','home_remote'].includes(a.presence));neighborhood=cameraMode==='home'||(cameraMode==='auto'&&everyoneHome);document.querySelector('#homeSwitcher').classList.toggle('visible',neighborhood);if(currentRoom==='office'&&!editMode)document.querySelector('#sceneTip').textContent=neighborhood?'切换住宅查看员工，下方可直接私聊':'点击员工聊天，点工位看他忙啥';// Room navigation
   if(currentRoom==='game'){drawGameRoom(w,h,t);ctx.textAlign='center';ctx.fillStyle='#8a9a9a';ctx.font='12px Microsoft YaHei';ctx.fillText('左上角返回办公室 · 右上角回消息首页',w/2,h*.68);ctx.textAlign='left'}
   else if(currentRoom==='boss'){drawBossOffice(w,h,t);ctx.textAlign='center';ctx.fillStyle='#8a9a9a';ctx.font='12px Microsoft YaHei';ctx.fillText('左上角返回办公室 · 右上角回消息首页',w/2,h*.68);ctx.textAlign='left'}
   else{if(neighborhood)drawHomeInterior(w,h,t);else room(w,h,t)}if(editMode)drawSelectionBox(w,h,t);if(t>nextFeed&&feedQueue.length){const item=feedQueue.shift(),speaker=agents[item.agent];if(speaker)speaker.speech={text:item.text,until:t+6500};nextFeed=t+5200}Object.values(agents).forEach((a,i)=>{initNeeds(a,i);updateNeeds(a,dt);const p=target(a,w,h,t),dx=p[0]-a.x,dy=p[1]-a.y,d=Math.hypot(dx,dy);a.moving=d>3;if(a.moving&&!neighborhood){const speed=.55;a.x+=dx/d*speed;a.y+=dy/d*speed}if(!a.hidden&&!neighborhood)drawAgent(a,t)});if(!neighborhood){drawAtmosphere(w,h,t);Object.values(agents).forEach(a=>{if(!a.hidden)drawSpeech(a,t,w)})}if(t-lastSave>10000){const out={};Object.values(agents).forEach(a=>out[a.id]=a.needs);localStorage.setItem('hermes-villa-needs',JSON.stringify(out));lastSave=t}if(chatMode==='private'&&selected&&t-lastPanel>1000){updatePanel(agents[selected]);lastPanel=t}requestAnimationFrame(frame)}requestAnimationFrame(frame);
