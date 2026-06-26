@@ -118,7 +118,7 @@
     #mobileEditBtn{display:none!important}
     #mobileOfficeBack::before{content:'CHAT';margin-right:8px;font-size:11px;letter-spacing:.08em}
     #mobileEditBtn::before{content:'';margin:0}
-    .mobile-office-menu-btn{display:none;position:absolute;left:14px;top:14px;z-index:13;width:54px;height:54px;border:3px solid #314046;background:#f6c95e;color:#192126;font-weight:900;font-size:24px;box-shadow:4px 4px 0 #4f5e65}
+    .mobile-office-menu-btn{display:block;position:absolute;left:14px;top:14px;z-index:13;width:54px;height:54px;border:3px solid #314046;background:#f6c95e;color:#192126;font-weight:900;font-size:24px;box-shadow:4px 4px 0 #4f5e65}
     .mobile-office-menu{display:none;position:absolute;left:14px;top:78px;z-index:13;width:min(260px,calc(100vw - 28px));padding:10px;background:#172126f2;border:3px solid #506268;box-shadow:5px 5px 0 #0b1114}
     .mobile-office-menu.open{display:grid;gap:8px}
     .mobile-office-menu button{height:42px;border:2px solid #506268;background:#26343a;color:#e8f1ed;font-weight:900;text-align:left;padding:0 12px}
@@ -126,7 +126,7 @@
     .mobile-edit-top{display:none;position:absolute;left:22px;right:22px;top:66px;z-index:12;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;padding:10px;background:#172126dd;border:3px solid #26383e;box-shadow:4px 4px 0 #0b1114}
     .mobile-edit-top button{height:52px;border:3px solid #4b5d63;background:#26343a;color:#f4f1e8;font-weight:900;font-size:13px;white-space:nowrap;box-shadow:3px 3px 0 #0b1114}
     .mobile-edit-top button.active{background:#f6c95e;color:#192126;border-color:#314046}
-    .mobile-edit-commit{display:none;position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:40;grid-template-columns:64px 64px;gap:22px;pointer-events:auto}
+    .mobile-edit-commit{display:none;position:fixed;left:50%;bottom:calc(28px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:40;grid-template-columns:64px 64px;gap:22px;pointer-events:auto}
     .mobile-edit-commit button{width:64px;height:64px;border:4px solid #314046;border-radius:8px;font-size:38px;font-weight:900;box-shadow:5px 5px 0 #51636a}
     .mobile-edit-commit .cancel{background:#26343a;color:#fff}
     .mobile-edit-commit .confirm{background:#6fca86;color:#102019}
@@ -155,7 +155,7 @@
       body.mobile-editing #editFab{display:none!important}
       body.mobile-editing #editBar{display:none!important}
       body.mobile-editing .camera{display:none!important}
-      body.mobile-editing .mobile-edit-commit{display:grid}
+      body.mobile-editing.mobile-edit-selected .mobile-edit-commit{display:grid}
       body.mobile-editing:not(.mobile-edit-selected) .mobile-edit-commit .confirm{opacity:.35;filter:grayscale(1);pointer-events:none}
       body.mobile-editing:not(.mobile-edit-selected) .mobile-edit-commit .cancel{opacity:.9}
       body.show-office .tip{bottom:14px}
@@ -630,11 +630,9 @@ function room(w,h,t=0){
   px(kitchenX,kitchenY,kitchenW,kitchenH,'#f2eee3');px(kitchenX,kitchenY,kitchenW,9,'#b47c4d');px(kitchenX+20,kitchenY+24,34,32,'#3a4a49');px(kitchenX+25,kitchenY+29,24,18,'#92bbb4');
   px(kitchenX+kitchenW-48,kitchenY+24,24,48,'#f8fbf7');px(kitchenX+kitchenW-45,kitchenY-10,18,32,'#71b5c0');px(kitchenX+72,kitchenY+45,16,22,'#d79965');px(kitchenX+76,kitchenY+39,8,8,'#edc885');
 
-  // --- Editable scene objects: drawn via SCENE_OBJECTS.draw in edit mode ---
+  // --- Editable scene objects: normal mode and edit mode share one layout source ---
   if(editMode){
-    for(const obj of SCENE_OBJECTS){
-      drawSceneObject(obj,w,h,t);
-    }
+    drawSceneObjects(w,h,t);
     // Draw collision warning
     if(collisionWarning&&Date.now()<collisionWarnUntil){
       ctx.save();
@@ -652,13 +650,7 @@ function room(w,h,t=0){
       ctx.textAlign='left';
       ctx.restore();
     }
-  }else{
-    // Normal mode: use hardcoded positions
-    if(narrow)breakBarScaled(Math.max(12,w-152),glassY+14,t,.78);else breakBar(w*.785,h*.495,178,88,t);
-    if(narrow)aquarium(18,glassY+14,Math.min(165,w*.43),54,t);else aquarium(w*.735,h*.665,w*.20,74,t);
-    desk(w*.15,h*.34,'default');desk(w*.57,h*.34,'planner');desk(w*.15,h*.64,'researcher');desk(w*.57,h*.64,'writer');
-    corgi(w*.675,h*.735,t);
-  }
+  }else drawSceneObjects(w,h,t);
   // sunlit lounge and indoor plants
   px(w*.76,h*.72,w*.22,h*.18,'#b9a98d');px(w*.79,h*.77,w*.15,50,'#385f57');px(w*.80,h*.755,w*.13,42,'#578276');px(w*.81,h*.77,32,18,'#d5b875');
   for(const p of [[.75,.68],[.95,.67],[.74,.9]]){px(w*p[0],h*p[1],8,42,'#896242');px(w*p[0]-14,h*p[1]-16,36,24,'#4d9364');px(w*p[0]-7,h*p[1]-27,22,20,'#72b478')}
@@ -884,6 +876,9 @@ function drawSceneObject(obj,w,h,t){
   const pos=scenePositions[obj.id]||obj.getDefault(w,h);
   if(obj.draw)obj.draw(pos.x,pos.y,t);
 }
+function drawSceneObjects(w,h,t){
+  for(const obj of SCENE_OBJECTS)drawSceneObject(obj,w,h,t);
+}
 
 function drawSelectionBox(w,h,t){
   if(!editMode||!editSelected)return;
@@ -951,6 +946,47 @@ function syncMobileEditUi(){
   document.body.classList.toggle('mobile-edit-selected',editMode&&!!editSelected);
   document.getElementById('mobileEditCommit')?.classList.toggle('blocked',selectionBlocked());
   document.getElementById('mobileEditBtn')?.classList.toggle('active',editMode);
+}
+function revertCurrentEditSelection(message='已撤销当前物品移动'){
+  if(!editSelectedStart?.id)return false;
+  scenePositions[editSelectedStart.id]={x:editSelectedStart.x,y:editSelectedStart.y};
+  editSelected=null;
+  editSelectedStart=null;
+  editDragging=false;
+  collisionWarning='';
+  syncMobileEditUi();
+  document.querySelector('#sceneTip').textContent=message;
+  return true;
+}
+async function persistScenePositions(){
+  const clean=sanitizeScenePositions(scenePositions);
+  setScenePositions(clean,{persist:true});
+  const resp=await fetch('/api/scene/save',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({scene:clean})
+  });
+  if(!resp.ok){
+    let detail='';
+    try{detail=(await resp.json()).error||resp.statusText}catch(e){detail=resp.statusText}
+    throw new Error(detail||`HTTP ${resp.status}`);
+  }
+  return clean;
+}
+async function commitCurrentEditSelection(){
+  if(!editSelected)return false;
+  if(selectionBlocked()){
+    document.querySelector('#sceneTip').textContent='当前位置会重叠，先移到可放置区域再保存';
+    return false;
+  }
+  await persistScenePositions();
+  editSelected=null;
+  editSelectedStart=null;
+  editDragging=false;
+  collisionWarning='';
+  syncMobileEditUi();
+  document.querySelector('#sceneTip').textContent='当前物品位置已保存，办公室已实时生效';
+  return true;
 }
 function rememberEditStart(id,w,h){
   const obj=SCENE_OBJECTS.find(o=>o.id===id);
@@ -1135,31 +1171,16 @@ document.getElementById('editFab').addEventListener('click',()=>{
 });
 document.getElementById('editCancel').addEventListener('click',()=>{
   collisionWarning='';
-  if(editSelectedStart?.id){
-    scenePositions[editSelectedStart.id]={x:editSelectedStart.x,y:editSelectedStart.y};
-    editSelected=null;
-    editSelectedStart=null;
-    editDragging=false;
-    syncMobileEditUi();
-    document.querySelector('#sceneTip').textContent='已撤销当前物品移动';
-    return;
-  }
+  if(revertCurrentEditSelection())return;
   setEditMode(false);
   document.querySelector('#sceneTip').textContent='已退出编辑模式';
 });
 document.getElementById('editSave').addEventListener('click',async()=>{
-  if(selectionBlocked()){
-    document.querySelector('#sceneTip').textContent='当前位置会重叠，先移到可放置区域再保存';
-    return;
-  }
-  saveScenePositionsToStorage();
   try{
-    const resp=await fetch('/api/scene/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scene:scenePositions})});
-    if(resp.ok){
+    if(editSelected)await commitCurrentEditSelection();
+    else{
+      await persistScenePositions();
       document.querySelector('#sceneTip').textContent='布局已保存，当前画面已实时生效';
-      collisionWarning='';
-    }else{
-      document.querySelector('#sceneTip').textContent='保存没成功，可能是服务器去摸鱼了。稍后再试';
     }
   }catch(err){
     document.querySelector('#sceneTip').textContent='保存出错：'+err.message;
@@ -1249,7 +1270,14 @@ function drawSpeech(a,t,w){
   ctx.fillStyle='#273835';
   lines.forEach((line,i)=>ctx.fillText(line,bx+8,by+18+i*15));
 }
-function homeOf(a,w,h){const s=spots[a.id];return[s[0]*w+46,s[1]*h+48]}
+function homeOf(a,w,h){
+  const deskId={default:'desk_default',planner:'desk_planner',researcher:'desk_researcher',writer:'desk_writer'}[a.id];
+  const deskObj=SCENE_OBJECTS.find(o=>o.id===deskId);
+  const deskPos=deskId&&(scenePositions[deskId]||deskObj?.getDefault(w,h));
+  if(deskPos)return[deskPos.x+66,deskPos.y+60];
+  const s=spots[a.id];
+  return[s[0]*w+46,s[1]*h+48]
+}
 function initNeeds(a,i){if(a.needs)return;const old=savedNeeds[a.id];a.needs=old||{fatigue:18+i*4,hunger:20+i*3,thirst:18+i*5,mood:78-i*3,bladder:12+i*5};a.phase='desk';a.phaseUntil=0}
 function finishPhase(a,t){
   const n=a.needs;
@@ -1966,6 +1994,10 @@ document.querySelector('#mobileOfficeMenu')?.addEventListener('click',e=>{
   document.querySelector('#mobileOfficeMenu')?.classList.remove('open');
   if(action==='edit'){setEditMode(true);return}
   if(action==='game'){location.href='/projects/companyverse/index.html';return}
+  if(!isMobileView()){
+    if(action==='group')setChatMode('group');
+    return;
+  }
   toggleOffice(false);
   if(action==='company'){mobileState.tab='company';mobileState.chatOpen=false;renderMobileShell();return}
   if(action==='group'){mobileState.tab='messages';openMobileChatGroup('team');return}
@@ -1996,37 +2028,14 @@ document.querySelector('#mobileEditTop')?.addEventListener('click',e=>{
   setEditMode(true);
 });
 document.querySelector('#mobileEditRevert')?.addEventListener('click',()=>{
-  if(!editSelectedStart?.id&&!editSelected){
-    setEditMode(false);
-    document.querySelector('#sceneTip').textContent='已退出编辑模式';
-    return;
-  }
-  if(editSelectedStart?.id){
-    scenePositions[editSelectedStart.id]={x:editSelectedStart.x,y:editSelectedStart.y};
-  }
-  editSelected=null;
-  editSelectedStart=null;
-  editDragging=false;
-  collisionWarning='';
-  syncMobileEditUi();
-  document.querySelector('#sceneTip').textContent='已撤销当前物品移动';
+  revertCurrentEditSelection();
 });
 document.querySelector('#mobileEditConfirm')?.addEventListener('click',async()=>{
-  if(!editSelected){
-    document.querySelector('#sceneTip').textContent='先点选一个物品，再保存它的位置';
-    return;
-  }
-  if(selectionBlocked())return;
-  saveScenePositionsToStorage();
   try{
-    await fetch('/api/scene/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scene:scenePositions})});
-  }catch(e){}
-  editSelected=null;
-  editSelectedStart=null;
-  editDragging=false;
-  collisionWarning='';
-  syncMobileEditUi();
-  document.querySelector('#sceneTip').textContent='当前物品位置已保存';
+    await commitCurrentEditSelection();
+  }catch(err){
+    document.querySelector('#sceneTip').textContent='保存出错：'+err.message;
+  }
 });
 document.querySelector('#mobileFocusGroup')?.addEventListener('click',()=>{mobileState.tab='messages';openMobileChatGroup('team')});
 document.querySelector('#mobileChatBack')?.addEventListener('click',()=>{mobileState.chatOpen=false;renderMobileShell()});
