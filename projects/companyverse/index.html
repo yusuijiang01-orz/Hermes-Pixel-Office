@@ -355,7 +355,7 @@ function updateCorgiWorld(t,w,roadY,narrow){
   if(moving){
     const step=Math.sign(dx)*(narrow?0.42:0.58);
     corgiWorld.x+=Math.abs(step)>Math.abs(dx)?dx:step;
-    corgiFSM.dir=dx>=0?-1:1;
+    corgiFSM.dir=dx>=0?1:-1;
     corgiFSM.stepPhase=(corgiFSM.stepPhase+Math.abs(step))%64;
     speed=Math.abs(step);
   }else if(t>corgiWorld.nextDecision&&!corgiIsTemp(corgiFSM.state)){
@@ -374,7 +374,7 @@ function updateCorgiWorld(t,w,roadY,narrow){
 function drawCorgi(t,w,h,ax,ay){
   const hour=new Date().getHours();
   updateCorgiFSM(t,{speed:0,targetSpeed:0,hasMoveIntent:false,nearInterestingObject:true,ownerNearby:true,allowSleep:hour>=22||hour<7});
-  const mobile=w<700,scale=mobile?.28:.42;
+  const mobile=w<700,scale=mobile?.20:.34;
   drawCorgiSprite(t,ax-(mobile?12:18),ay-(mobile?34:46),scale,true,corgiFSM.dir,corgiFSM.state);
 }
 function drawCorgiSprite(t,ax,ay,scale=1,label=false,dir=1,anim='walk'){
@@ -541,7 +541,7 @@ function drawStreet(t,w,h){
     rect(g.x-screenW*.38,g.y-gateH*.32+pulse,screenW*.76,Math.max(28,gateH-62),g.color);
     rect(g.x-screenW*.30,g.y-gateH*.24+pulse,screenW*.60,7,'#ffffff55');
     if(g.key==='mushroom'){rect(g.x-14,g.y-18+pulse,28,16,'#c85d4b');rect(g.x-20,g.y-10+pulse,40,9,'#f0c49b');rect(g.x-8,g.y-2+pulse,16,18,'#f7f4ea');rect(g.x-4,g.y+4+pulse,3,3,'#263238');rect(g.x+4,g.y+4+pulse,3,3,'#263238')}
-    if(g.key==='corgi'){drawCorgiSprite(t,g.x-(narrow?20:34),g.y-(narrow?30:44)+pulse,narrow?.22:.34,false,1,'bark');rect(g.x-26,g.y+8+pulse,14,8,'#6aa6a5')}
+    if(g.key==='corgi'){drawCorgiSprite(t,g.x-(narrow?16:30),g.y-(narrow?24:40)+pulse,narrow?.16:.30,false,1,'bark');rect(g.x-26,g.y+8+pulse,14,8,'#6aa6a5')}
     if(g.key==='koi'){rect(g.x-18,g.y-14+pulse,32,15,'#e45f42');rect(g.x-25,g.y-9+pulse,8,8,'#e45f42');rect(g.x+7,g.y-17+pulse,8,5,'#f0c85a')}
     label(g.name,g.x,g.y+(narrow?48:61),narrow?54:96);
     if(!narrow)text(g.sub,g.x,g.y+78,10,'#5f6b6a','center');
@@ -600,8 +600,8 @@ function drawStreet(t,w,h){
     });
   }
   const dog=updateCorgiWorld(t,w,roadY,narrow);
-  const dogScale=narrow?.24:.38;
-  const dogX=dog.x-(narrow?12:18),dogY=dog.y-(narrow?34:48),dogSize=160*dogScale;
+  const dogScale=narrow?.18:.32;
+  const dogX=dog.x-(narrow?10:16),dogY=dog.y-(narrow?28:44),dogSize=160*dogScale;
   registerObject('street','corgi','小文柯基',dogX,dogY,dogSize,dogSize,{category:'pet',owner:'小文',interactable:true,dynamic:true,state:corgiFSM.state});
   drawCorgiSprite(t,dogX,dogY,dogScale,false,corgiFSM.dir,corgiFSM.state);
   if(!narrow)text('小文柯基',dog.x+14,dog.y+32,10,'#263238','center');
@@ -667,8 +667,9 @@ function drawCorgiGame(t,w,h){
   // Corgi player
   let cx=corgiState.playerX,cy=corgiState.playerY;
   if(Math.abs(vx)>0.05)corgiFSM.stepPhase=(corgiFSM.stepPhase+Math.abs(vx)*2.6)%64;
-  updateCorgiFSM(t,{speed:Math.abs(vx)*1.5,targetSpeed:Math.abs(vx)*1.5,hasMoveIntent:Math.abs(vx)>0.05,nearInterestingObject:true,ownerNearby:true,dir:vx<0?1:-1});
-  drawCorgiSprite(t,cx-8,cy-52,.5,false,corgiFSM.dir,corgiFSM.state);
+  const gameScale=w<700?.28:.42;
+  updateCorgiFSM(t,{speed:Math.abs(vx)*1.5,targetSpeed:Math.abs(vx)*1.5,hasMoveIntent:Math.abs(vx)>0.05,nearInterestingObject:true,ownerNearby:true,dir:vx<0?-1:1});
+  drawCorgiSprite(t,cx-6,cy-(gameScale*118),gameScale,false,corgiFSM.dir,corgiFSM.state);
 
   // Back button
   rect(10,10,56,28,'#f7f4ea');text('返回',38,29,10,'#38514c','center');
