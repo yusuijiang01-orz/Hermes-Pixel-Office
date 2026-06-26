@@ -147,7 +147,8 @@
       body.show-office .world{font-size:10px;margin-left:auto}
       body.show-office .project{display:none}
       body.show-office main{display:grid;grid-template-columns:1fr;height:calc(100vh - 46px)}
-      body.show-office .stage{height:100%}
+      body.show-office .stage{height:100%;overflow:hidden;touch-action:none}
+      body.show-office .stage canvas{position:absolute;left:0;top:0;width:960px;max-width:none;height:100%;transform-origin:0 0;touch-action:none}
       body.show-office aside{display:none!important}
       body.show-office .mobile-shell{display:none}
       body.show-office .mobile-office-back{display:block}
@@ -369,7 +370,29 @@ const builtinStickers=[
   sceneSticker('手机摸鱼','phone'),sceneSticker('外卖到门口','delivery'),sceneSticker('PR 爆炸','pr'),sceneSticker('灵感灯泡','idea'),sceneSticker('看板推进','board'),
   pixelSticker('阿默冷笑','cool','#8fcfc2'),pixelSticker('小韩拍板','thumb','#e7b34d'),pixelSticker('小研质疑','think','#b8d98b'),pixelSticker('小文扎心','shock','#d6a4e8'),pixelSticker('今日交付','smile','#78c59b')
 ];
-function fit(){const r=canvas.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2);canvas.width=r.width*d;canvas.height=r.height*d;ctx.setTransform(d,0,0,d,0,0)}addEventListener('resize',fit);fit();
+function fit(){const d=Math.min(devicePixelRatio||1,2),w=canvas.clientWidth||canvas.getBoundingClientRect().width,h=canvas.clientHeight||canvas.getBoundingClientRect().height;canvas.width=w*d;canvas.height=h*d;ctx.setTransform(d,0,0,d,0,0);applyOfficeView()}addEventListener('resize',fit);fit();
+function canvasPointFromClient(clientX,clientY){
+  const r=canvas.getBoundingClientRect(),sx=(r.width||canvas.clientWidth)/(canvas.clientWidth||1),sy=(r.height||canvas.clientHeight)/(canvas.clientHeight||1);
+  return{x:(clientX-r.left)/(sx||1),y:(clientY-r.top)/(sy||1)};
+}
+function isOfficeViewportActive(){return isMobileView()&&document.body.classList.contains('show-office')&&currentRoom==='office'}
+function clampOfficeView(){
+  const stage=canvas.parentElement;
+  if(!stage)return;
+  const sw=stage.clientWidth,sh=stage.clientHeight,cw=canvas.clientWidth*officeView.scale,ch=canvas.clientHeight*officeView.scale;
+  const minX=Math.min(0,sw-cw),minY=Math.min(0,sh-ch);
+  officeView.x=Math.min(0,Math.max(minX,officeView.x));
+  officeView.y=Math.min(0,Math.max(minY,officeView.y));
+}
+function applyOfficeView(){
+  if(!isOfficeViewportActive()){
+    canvas.style.transform='';
+    return;
+  }
+  officeView.scale=Math.min(officeView.max,Math.max(officeView.min,officeView.scale));
+  clampOfficeView();
+  canvas.style.transform=`translate(${Math.round(officeView.x)}px,${Math.round(officeView.y)}px) scale(${officeView.scale})`;
+}
 const officeCorgiFrames={};
 const OFFICE_CORGI_ANIMS={
   idle:['idle_0','idle_1','idle_2','idle_3','idle_4','idle_5','idle_6','idle_7'],
@@ -950,7 +973,7 @@ function setEditMode(next){
 canvas.addEventListener('mousedown',e=>{
   if(!editMode)return;
   collisionWarning='';
-  const r=canvas.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
+  const p=canvasPointFromClient(e.clientX,e.clientY),mx=p.x,my=p.y;
   const w=canvas.clientWidth,h=canvas.clientHeight;
   const hit=hitTestSceneObjects(mx,my,w,h);
   if(hit){
@@ -970,7 +993,7 @@ canvas.addEventListener('mousedown',e=>{
 });
 canvas.addEventListener('mousemove',e=>{
   if(!editMode||!editDragging||!editSelected)return;
-  const r=canvas.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
+  const p=canvasPointFromClient(e.clientX,e.clientY),mx=p.x,my=p.y;
   const newX=mx-editDragOff.x,newY=my-editDragOff.y;
   const obj=SCENE_OBJECTS.find(o=>o.id===editSelected);
   if(obj){
@@ -993,8 +1016,8 @@ canvas.addEventListener('mouseleave',()=>{editDragging=false});
 canvas.addEventListener('touchstart',e=>{
   if(!editMode)return;
   collisionWarning='';
-  const t=e.touches[0],r=canvas.getBoundingClientRect();
-  const mx=t.clientX-r.left,my=t.clientY-r.top;
+  const t=e.touches[0],p=canvasPointFromClient(t.clientX,t.clientY);
+  const mx=p.x,my=p.y;
   const w=canvas.clientWidth,h=canvas.clientHeight;
   const hit=hitTestSceneObjects(mx,my,w,h);
   if(hit){
@@ -1014,8 +1037,8 @@ canvas.addEventListener('touchstart',e=>{
 },{passive:false});
 canvas.addEventListener('touchmove',e=>{
   if(!editMode||!editDragging||!editSelected)return;
-  const t=e.touches[0],r=canvas.getBoundingClientRect();
-  const mx=t.clientX-r.left,my=t.clientY-r.top;
+  const t=e.touches[0],p=canvasPointFromClient(t.clientX,t.clientY);
+  const mx=p.x,my=p.y;
   const newX=mx-editDragOff.x,newY=my-editDragOff.y;
   const obj=SCENE_OBJECTS.find(o=>o.id===editSelected);
   if(obj){
@@ -1032,6 +1055,64 @@ canvas.addEventListener('touchmove',e=>{
   e.preventDefault();
 },{passive:false});
 canvas.addEventListener('touchend',()=>{editDragging=false});
+
+let officeTouch={mode:'',lastX:0,lastY:0,dist:0,scale:1};
+function touchDistance(a,b){return Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY)}
+function stagePointFromTouch(t){
+  const r=canvas.parentElement.getBoundingClientRect();
+  return{x:t.clientX-r.left,y:t.clientY-r.top};
+}
+canvas.addEventListener('touchstart',e=>{
+  if(!isOfficeViewportActive()||currentRoom==='game')return;
+  if(editMode&&editDragging)return;
+  if(e.touches.length===2){
+    officeTouch.mode='pinch';
+    officeTouch.dist=touchDistance(e.touches[0],e.touches[1]);
+    officeTouch.scale=officeView.scale;
+    e.preventDefault();
+    return;
+  }
+  if(e.touches.length===1){
+    officeTouch.mode='pan';
+    officeTouch.lastX=e.touches[0].clientX;
+    officeTouch.lastY=e.touches[0].clientY;
+  }
+},{passive:false});
+canvas.addEventListener('touchmove',e=>{
+  if(!isOfficeViewportActive()||currentRoom==='game')return;
+  if(editMode&&editDragging)return;
+  if(officeTouch.mode==='pinch'&&e.touches.length===2){
+    const before=officeView.scale;
+    const next=Math.min(officeView.max,Math.max(officeView.min,officeTouch.scale*(touchDistance(e.touches[0],e.touches[1])/(officeTouch.dist||1))));
+    const p1=stagePointFromTouch(e.touches[0]),p2=stagePointFromTouch(e.touches[1]);
+    const mid={x:(p1.x+p2.x)/2,y:(p1.y+p2.y)/2};
+    const wx=(mid.x-officeView.x)/(before||1),wy=(mid.y-officeView.y)/(before||1);
+    officeView.scale=next;
+    officeView.x=mid.x-wx*next;
+    officeView.y=mid.y-wy*next;
+    applyOfficeView();
+    e.preventDefault();
+    return;
+  }
+  if(officeTouch.mode==='pan'&&e.touches.length===1){
+    const t=e.touches[0],dx=t.clientX-officeTouch.lastX,dy=t.clientY-officeTouch.lastY;
+    officeTouch.lastX=t.clientX;
+    officeTouch.lastY=t.clientY;
+    officeView.x+=dx;
+    officeView.y+=dy;
+    applyOfficeView();
+    e.preventDefault();
+  }
+},{passive:false});
+canvas.addEventListener('touchend',e=>{
+  if(!isOfficeViewportActive())return;
+  if(e.touches.length===0)officeTouch.mode='';
+  else if(e.touches.length===1){
+    officeTouch.mode='pan';
+    officeTouch.lastX=e.touches[0].clientX;
+    officeTouch.lastY=e.touches[0].clientY;
+  }
+},{passive:false});
 
 // === Edit Mode Buttons ===
 document.getElementById('editToggle').addEventListener('click',()=>{
@@ -1322,7 +1403,7 @@ function activityText(a){if(a.presence==='home'||a.presence==='home_remote')retu
 function updatePanel(a){if(!a)return;document.querySelector('#agentStatus').textContent=activityText(a);document.querySelector('#agentSocial').textContent=a.social_summary||'暂无';document.querySelector('#agentRelationship').textContent=a.relationship_summary?`关系网 · ${a.relationship_summary}`:'';const vals=[a.needs?.fatigue,a.needs?.hunger,a.needs?.thirst,a.needs?.mood],nodes=document.querySelectorAll('.need');nodes.forEach((node,i)=>{const val=Math.round(vals[i]??0),risk=i===3?val<35:val>70;node.classList.toggle('bad',risk);node.querySelector('i').style.width=val+'%';node.querySelector('b').textContent=val})}
 function select(id,openSheet=true){selected=id;const a=agents[id];if(!a)return;if(chatMode==='private'){document.querySelector('#agentName').textContent=a.name;document.querySelector('#agentRole').textContent=a.role;document.querySelector('#agentTask').textContent=a.task;updatePanel(a)}document.querySelector('#message').disabled=false;document.querySelector('#send').disabled=false;if(openSheet&&innerWidth<=700)document.querySelector('aside').classList.remove('collapsed');renderChat()}
 function setChatMode(mode){chatMode=mode;const panel=document.querySelector('aside');panel.classList.toggle('group-mode',mode==='group');document.querySelectorAll('.chat-modes button').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));const input=document.querySelector('#message');if(mode==='group'){document.querySelector('#agentName').textContent='全员群聊';document.querySelector('#agentRole').textContent='阿默 · 小韩 · 小研 · 小文';document.querySelector('#agentStatus').textContent='团队频道';document.querySelector('#agentTask').textContent=state?.board?.name||'当前项目';input.placeholder='向全组发起讨论...';input.disabled=false;document.querySelector('#send').disabled=false}else{input.placeholder='给这位员工留言...';closeMentionMenu('desktop');if(selected)select(selected,false)}renderChat()}
-canvas.addEventListener('click',e=>{const r=canvas.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;let hit=null,best=65;Object.values(agents).forEach(a=>{const d=Math.hypot(x-a.x,y-a.y);if(d<best){best=d;hit=a.id}});if(hit){if(isMobileView()&&document.body.classList.contains('show-office')){toggleOffice(false);openMobileChatPrivate(hit);return}setChatMode('private');select(hit)}
+canvas.addEventListener('click',e=>{const p=canvasPointFromClient(e.clientX,e.clientY),x=p.x,y=p.y;let hit=null,best=65;Object.values(agents).forEach(a=>{const d=Math.hypot(x-a.x,y-a.y);if(d<best){best=d;hit=a.id}});if(hit){if(isMobileView()&&document.body.classList.contains('show-office')){toggleOffice(false);openMobileChatPrivate(hit);return}setChatMode('private');select(hit)}
   // Room navigation clicks (when in game/boss mode, or in office at restroom)
   if(currentRoom!=='office'){
     // In game room
@@ -1335,7 +1416,7 @@ canvas.addEventListener('click',e=>{const r=canvas.getBoundingClientRect(),x=e.c
 // Click on restroom door to enter game room
 canvas.addEventListener('click',function(e2){
   if(currentRoom!=='office'||editMode)return;
-  const r2=canvas.getBoundingClientRect(),x2=e2.clientX-r2.left,y2=e2.clientY-r2.top;
+  const p2=canvasPointFromClient(e2.clientX,e2.clientY),x2=p2.x,y2=p2.y;
   const w2=canvas.clientWidth,h2=canvas.clientHeight,glassY2=Math.max(132,h2*.22);
   const restroomX=w2*.79,restroomW=w2*.18,restroomY=12,restroomH=glassY2-24;
   if(x2>=restroomX&&x2<=restroomX+restroomW&&y2>=restroomY&&y2<=restroomY+restroomH){
@@ -1626,8 +1707,9 @@ function scheduleRefresh(delay){
 }
 function toggleOffice(show){
   document.body.classList.toggle('show-office',!!show);
-  if(show)setTimeout(()=>fit(),50);
+  if(show)setTimeout(()=>{fit();applyOfficeView()},50);
   else{
+    applyOfficeView();
     if(mobileState.agent||mobileState.chatMode==='group')mobileState.chatOpen=true;
     renderMobileShell()
   }
