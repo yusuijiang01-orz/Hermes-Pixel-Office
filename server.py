@@ -1762,9 +1762,18 @@ class Handler(SimpleHTTPRequestHandler):
         sent = self.headers.get("X-Hermes-Api-Key", "") or query_key
         return hmac.compare_digest(sent, API_KEY)
 
+    def same_origin_request(self):
+        origin = self.headers.get("Origin", "")
+        if not origin:
+            return False
+        try:
+            return urlparse(origin).netloc == self.headers.get("Host", "")
+        except Exception:
+            return False
+
     def do_GET(self):
         path = urlparse(self.path).path
-        if path.startswith("/api/") and not self.api_authorized():
+        if path.startswith("/api/") and path != "/api/scene/load" and not self.api_authorized():
             self.send_json({"error": "API KEY 无效"}, 401)
             return
         if path == "/api/scene/load":
@@ -1842,7 +1851,8 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(self.path).path
-        if path.startswith("/api/") and not self.api_authorized():
+        scene_same_origin = path == "/api/scene/save" and self.same_origin_request()
+        if path.startswith("/api/") and not scene_same_origin and not self.api_authorized():
             self.send_json({"error": "API KEY 无效"}, 401)
             return
         if path == "/api/scene/save":
