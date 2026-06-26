@@ -136,7 +136,9 @@
     body.mobile-editing #editFab{display:none!important}
     body.mobile-editing #editBar{display:none!important}
     body.mobile-editing .camera{display:none!important}
-    body.mobile-editing.mobile-edit-selected .mobile-edit-commit{display:grid}
+    body.mobile-editing .mobile-edit-commit{display:grid}
+    body.mobile-editing:not(.mobile-edit-selected) .mobile-edit-commit .confirm{opacity:.35;filter:grayscale(1);pointer-events:none}
+    body.mobile-editing:not(.mobile-edit-selected) .mobile-edit-commit .cancel{opacity:.9}
     @media(max-width:700px){
       .room-rescue{left:12px;top:10px;height:46px;min-width:112px;font-size:14px}
       .room-rescue.secondary{left:auto;right:12px}
@@ -1993,6 +1995,11 @@ document.querySelector('#mobileEditTop')?.addEventListener('click',e=>{
   setEditMode(true);
 });
 document.querySelector('#mobileEditRevert')?.addEventListener('click',()=>{
+  if(!editSelectedStart?.id&&!editSelected){
+    setEditMode(false);
+    document.querySelector('#sceneTip').textContent='已退出编辑模式';
+    return;
+  }
   if(editSelectedStart?.id){
     scenePositions[editSelectedStart.id]={x:editSelectedStart.x,y:editSelectedStart.y};
   }
@@ -2004,7 +2011,11 @@ document.querySelector('#mobileEditRevert')?.addEventListener('click',()=>{
   document.querySelector('#sceneTip').textContent='已撤销当前物品移动';
 });
 document.querySelector('#mobileEditConfirm')?.addEventListener('click',async()=>{
-  if(!editSelected||selectionBlocked())return;
+  if(!editSelected){
+    document.querySelector('#sceneTip').textContent='先点选一个物品，再保存它的位置';
+    return;
+  }
+  if(selectionBlocked())return;
   saveScenePositionsToStorage();
   try{
     await fetch('/api/scene/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scene:scenePositions})});
