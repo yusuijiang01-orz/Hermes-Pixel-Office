@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>Hermes Companyverse</title>
+  <style>
+    *{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#13191d;color:#f6f1df;font-family:"Microsoft YaHei",Arial,sans-serif}
+    .wrap{height:100%;display:grid;grid-template-rows:54px 1fr 86px;background:#18232a}
+    header{display:flex;align-items:center;gap:14px;padding:0 14px;border-bottom:3px solid #0b1114;background:#1d2b32}
+    .brand{font-weight:900;letter-spacing:.02em}.brand b{color:#e5b94d}.status{font-size:12px;color:#9fc6ae}.hint{margin-left:auto;color:#d7c67b;font-size:12px;white-space:nowrap}
+    canvas{width:100%;height:100%;display:block;background:#d8c8a4;image-rendering:pixelated;touch-action:none}
+    .bar{display:grid;grid-template-columns:92px 92px 1fr 94px;gap:10px;padding:12px;background:#10181c;border-top:3px solid #344248}
+    button{border:3px solid #314046;background:#f0c85a;color:#172126;font-weight:900;box-shadow:4px 4px 0 #0b1114}
+    .bar button{height:50px}.msg{display:flex;align-items:center;padding:0 12px;border:3px solid #415158;background:#f7f4ea;color:#27343b;font-size:13px;line-height:1.35;overflow:hidden}
+    .small{font-size:11px;color:#8ea09c}
+    @media(max-width:700px){.wrap{grid-template-rows:48px 1fr 82px}header{gap:8px;padding:0 10px}.brand{font-size:13px}.hint{display:none}.bar{grid-template-columns:72px 72px 1fr 72px;gap:7px;padding:10px}.bar button{height:46px}.msg{font-size:12px;padding:0 8px}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header><div class="brand"><b>HERMES</b> COMPANYVERSE</div><div class="status" id="status">办公室大厅</div><div class="hint">母世界：办公室是中心，小游戏从街区进入</div></header>
+  <canvas id="game"></canvas>
+  <div class="bar">
+    <button id="left">←</button><button id="right">→</button>
+    <div class="msg" id="msg">从像素公司办公室出发。靠近出口、鱼缸、咖啡机或街区招牌会触发入口。</div>
+    <button id="act">行动</button>
+  </div>
+</div>
+<script>
+const canvas=document.querySelector('#game'),ctx=canvas.getContext('2d'),msgEl=document.querySelector('#msg'),statusEl=document.querySelector('#status');
+const keys={left:false,right:false,act:false};
+let mode='office',px=110,py=240,vx=0,vy=0,onGround=false,last=0,portal='';
+let coins=0,lives=3,streetTime=0;
+// Shared assets positions in office
+const officeAssets={
+  fishTank:{x:0,y:0,w:90,h:70}, // right wall
+  coffeeMachine:{x:0,y:0,w:36,h:44}, // water bar corner
+  iceMachine:{x:0,y:0,w:32,h:40}, // next to coffee
+  milkFoamer:{x:0,y:0,w:28,h:36}, // on counter
+  corgi:{x:0,y:0,w:40,h:28}, // near writer desk
+  desks:[[90,200],[260,200],[90,330],[260,330]]
+};
+const people=[['阿默',160,225,'#4aa6a0'],['小韩',310,225,'#e7b34d'],['小研',160,355,'#e45a9c'],['小文',310,355,'#a878d1']];
+
+// Fish tank fish data
+const fishes=[{dx:1,dy:0,x:0,y:0},{dx:-1,dy:0.5,x:0,y:35},{dx:0.5,dy:-1,x:45,y:18}];
+
+// Street mini-game state
+let streetGates=[
+  {name:'水管工冒充者',x:0,y:0,w:110,h:76,color:'#c85d4b',key:'mario',entered:false},
+  {name:'柯基追鱼',x:0,y:0,w:110,h:76,color:'#d99a4e',key:'corgi',entered:false},
+  {name:'锦鲤保佑',x:0,y:0,w:110,h:76,color:'#6aa6a5',key:'koi',entered:false}
+];
+
+// Mario game state
+const marioPlatforms=[[20,420,190,18],[260,360,120,18],[430,300,130,18],[620,245,110,18],[780,390,180,18]];
+const marioBugs=[[360,340,0],[565,280,1],[845,370,0]];
+
+// Corgi chase fish game state
+let corgiState={playerX:0,playerY:0,fishes:[],score:0,time:0,active:false};
+
+// Koi blessing game state
+let koiState={playerX:0,playerY:0,koi:[],score:0,active:false};
+
+function resize(){const d=Math.min(devicePixelRatio||1,2),r=canvas.getBoundingClientRect();canvas.width=r.width*d;canvas.height=r.height*d;ctx.setTransform(d,0,0,d,0,0)}
+addEventListener('resize',resize);resize();
+
+function rect(x,y,w,h,c){ctx.fillStyle=c;ctx.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h))}
+function text(s,x,y,size=12,c='#253238',align='left'){ctx.fillStyle=c;ctx.font=`900 ${size}px Microsoft YaHei`;ctx.textAlign=align;ctx.fillText(s,x,y);ctx.textAlign='left'}
+function hero(x,y){rect(x-10,y-20,20,20,'#e5b94d');rect(x-8,y-34,16,16,'#f0c49b');rect(x-9,y-39,18,7,'#4b302b');rect(x-7,y,6,11,'#263238');rect(x+2,y,6,11,'#263238')}
+function employee(name,x,y,c){rect(x-16,y-10,32,20,c);rect(x-12,y-28,24,20,'#efc49d');rect(x-13,y-32,26,8,'#2f3a3e');rect(x-18,y+11,36,14,'#263432');text(name,x,y+22,10,'#fff','center')}
+
+// Draw fish tank with animated fish
+function drawFishTank(t,w,h,ax,ay){
+  // Tank glass
+  rect(ax,ay,officeAssets.fishTank.w,officeAssets.fishTank.h,'#82c6c0');
+  rect(ax-2,ay-2,officeAssets.fishTank.w+4,officeAssets.fishTank.h+2,'#314046');
+  // Water
+  rect(ax+3,ay+3,officeAssets.fishTank.w-6,officeAssets.fishTank.h-6,'#6aa6a5');
+  // Sand bottom
+  rect(ax+3,ay+officeAssets.fishTank.h-14,officeAssets.fishTank.w-6,11,'#d8c8a4');
+  // Plants
+  for(let i=0;i<3;i++){rect(ax+12+i*28,ay+officeAssets.fishTank.h-20,6,10,'#5e8d68')}
+  // Animated fish
+  fishes.forEach((f,i)=>{
+    f.x=(f.x+f.dx+officeAssets.fishTank.w-10)%(officeAssets.fishTank.w-10);
+    f.y=ay+8+Math.sin(t/400+i*2)*8;
+    rect(f.x,Math.round(f.y),8,5,i===0?'#e45f42':i===1?'#f0c85a':'#4aa6a0');
+    rect(f.x+(f.dx>0?6:-2),Math.round(f.y)+1,2,3,i===0?'#e45f42':i===1?'#f0c85a':'#4aa6a0');
+  });
+  // Bubbles
+  for(let i=0;i<4;i++){
+    let bx=ax+10+i*20+Math.sin(t/600+i)*5;
+    let by=ay+officeAssets.fishTank.h-10-(t/20+i*15)%30;
+    ctx.strokeStyle='#ffffff44';ctx.lineWidth=1;ctx.beginPath();ctx.arc(bx,by,2,0,Math.PI*2);ctx.stroke();
+  }
+  // Label
+  text('鱼缸',ax+officeAssets.fishTank.w/2,ay+officeAssets.fishTank.h+12,9,'#5b4d40','center');
+}
+
+// Draw coffee machine with steam
+function drawCoffeeMachine(t,w,h,ax,ay){
+  rect(ax,ay,officeAssets.coffeeMachine.w,officeAssets.coffeeMachine.h,'#365550');
+  rect(ax+2,ay+2,officeAssets.coffeeMachine.w-4,officeAssets.coffeeMachine.h-4,'#314046');
+  // Screen
+  rect(ax+6,ay+6,officeAssets.coffeeMachine.w-12,10,'#8fcfc2');
+  // Button
+  rect(ax+10,ay+20,6,6,'#e5b94d');
+  rect(ax+20,ay+20,6,6,'#e45f42');
+  // Cup
+  rect(ax+10,ay+officeAssets.coffeeMachine.h-12,12,10,'#f7f4ea');
+  // Steam
+  for(let i=0;i<3;i++){
+    let sx=ax+14+i*6;
+    let sy=ay-4-(t/150+i*8)%12;
+    ctx.strokeStyle='#ffffff33';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(sx,sy+6);ctx.quadraticCurveTo(sx+2,sy+3,sx,sy);ctx.stroke();
+  }
+  text('咖啡机',ax+officeAssets.coffeeMachine.w/2,ay+officeAssets.coffeeMachine.h+12,9,'#5b4d40','center');
+}
+
+// Draw ice machine
+function drawIceMachine(t,w,h,ax,ay){
+  rect(ax,ay,officeAssets.iceMachine.w,officeAssets.iceMachine.h,'#c8d8d8');
+  rect(ax+2,ay+2,officeAssets.iceMachine.w-4,officeAssets.iceMachine.h-4,'#a8bcbf');
+  // Ice dispenser
+  rect(ax+8,ay+officeAssets.iceMachine.h-18,16,12,'#e8f4f4');
+  // Ice cubes
+  for(let i=0;i<3;i++){rect(ax+10+i*5,ay+officeAssets.iceMachine.h-16+i*3,4,4,'#d0e8e8')}
+  text('制冰机',ax+officeAssets.iceMachine.w/2,ay+officeAssets.iceMachine.h+12,9,'#5b4d40','center');
+}
+
+// Draw milk frother
+function drawMilkFoamer(t,w,h,ax,ay){
+  rect(ax,ay,officeAssets.milkFoamer.w,officeAssets.milkFoamer.h,'#f0e8d8');
+  rect(ax+2,ay+2,officeAssets.milkFoamer.w-4,officeAssets.milkFoamer.h-4,'#e8dcc8');
+  // Froth nozzle
+  rect(ax+8,ay-4,12,6,'#c8c0b0');
+  // Froth bubbles
+  for(let i=0;i<3;i++){
+    let fy=ay-8-i*4-Math.sin(t/300+i)*2;
+    ctx.fillStyle='#ffffff55';ctx.beginPath();ctx.arc(ax+14+i*4,fy,2,0,Math.PI*2);ctx.fill();
+  }
+  text('打奶泡',ax+officeAssets.milkFoamer.w/2,ay+officeAssets.milkFoamer.h+12,9,'#5b4d40','center');
+}
+
+// Draw corgi
+function drawCorgi(t,w,h,ax,ay){
+  // Body
+  rect(ax,ay+8,officeAssets.corgi.w,officeAssets.corgi.h-8,'#d99a4e');
+  // Head
+  rect(ax+officeAssets.corgi.w-16,ay,20,16,'#f0b868');
+  // Ears
+  rect(ax+officeAssets.corgi.w-14,ay-4,5,6,'#c88a3c');
+  rect(ax+officeAssets.corgi.w-4,ay-4,5,6,'#c88a3c');
+  // Eyes
+  rect(ax+officeAssets.corgi.w-12,ay+4,3,3,'#263238');
+  rect(ax+officeAssets.corgi.w-3,ay+4,3,3,'#263238');
+  // Tail (wagging)
+  let tailWag=Math.sin(t/200)*4;
+  rect(ax-4+tailWag,ay+4,6,4,'#d99a4e');
+  // Legs
+  rect(ax+4,ay+officeAssets.corgi.h,6,6,'#c88a3c');
+  rect(ax+officeAssets.corgi.w-14,ay+officeAssets.corgi.h,6,6,'#c88a3c');
+  rect(ax+officeAssets.corgi.w-6,ay+officeAssets.corgi.h,6,6,'#c88a3c');
+  text('小文柯基',ax+officeAssets.corgi.w/2,ay+officeAssets.corgi.h+12,9,'#5b4d40','center');
+}
+
+// Draw office scene with all assets
+function drawOffice(t,w,h){
+  statusEl.textContent='办公室大厅';
+  rect(0,0,w,h,'#d8c8a4');
+  // Floor
+  rect(0,0,w,92,'#91c79b');
+  rect(12,92,w-24,14,'#30494b');
+  // Carpet tiles
+  for(let y=118;y<h;y+=26)for(let x=0;x<w;x+=90)rect(x+(y%52),y,86,23,(x+y)%2?'#dfd1b2':'#cdbd9d');
+  // Wall sign
+  rect(w*.38,116,w*.24,26,'#365550');text('HERMES VILLA',w/2,134,11,'#f3d486','center');
+  // Desks with employees
+  officeAssets.desks.forEach((p,i)=>{
+    rect(p[0],p[1],120,44,'#9d6f45');
+    rect(p[0]+42,p[1]-28,48,34,'#314046');
+    rect(p[0]+48,p[1]-22,36,18,'#8fcfc2');
+    rect(p[0]+10,p[1]+44,12,28,'#6f4d36');
+    rect(p[0]+98,p[1]+44,12,28,'#6f4d36');
+  });
+  // Water bar area (right side)
+  rect(w-170,190,120,70,'#3b4b4b');
+  rect(w-160,200,100,48,'#82c6c0');
+  for(let i=0;i<4;i++){rect(w-150+i*22,235,10,8,i%2?'#5e8d68':'#8b7e57');rect(w-150+(t*.04+i*40)%88,212+i*8,16,7,i%2?'#f0a24f':'#e45f42')}
+  text('水吧',w-110,390,11,'#5b4d40','center');
+
+  // Fish tank on right wall
+  drawFishTank(t,w,h,w-160,140);
+
+  // Coffee machine on water bar counter
+  drawCoffeeMachine(t,w,h,w-148,196);
+
+  // Ice machine next to coffee
+  drawIceMachine(t,w,h,w-108,200);
+
+  // Milk frother on counter
+  drawMilkFoamer(t,w,h,w-68,204);
+
+  // Corgi near writer desk (bottom right)
+  drawCorgi(t,w,h,270,h-50);
+
+  // EXIT to street
+  rect(w-82,70,58,44,'#e7d2a1');
+  text('EXIT',w-53,98,12,'#38514c','center');
+
+  // Employees
+  people.forEach(p=>employee(...p));
+  hero(px,py);
+
+  // Check portals
+  portal='';
+  // Exit to street
+  if(px>w-100&&py<135) portal='street';
+  // Fish tank interaction
+  if(Math.abs(px-(w-115))<50&&Math.abs(py-175)<45) portal='fish_talk';
+  // Coffee machine interaction
+  if(Math.abs(px-(w-130))<25&&Math.abs(py-218)<25) portal='coffee';
+  // Corgi interaction
+  if(Math.abs(px-290)<30&&Math.abs(py-(h-35))<25) portal='corgi_talk';
+}
+
+// Street scene with all mini-game gates
+function drawStreet(t,w,h){
+  streetTime=t;
+  statusEl.textContent='别墅外街区';
+  rect(0,0,w,h,'#91c79b');
+  rect(0,h-105,w,105,'#6e7f73');
+  // Company building
+  rect(30,80,190,145,'#dbcba8');
+  rect(55,110,140,85,'#f4efe2');
+  text('HERMES 像素公司',125,103,12,'#365550','center');
+  // Back to office button
+  rect(18,20,70,44,'#e7d2a1');
+  text('回公司',53,48,11,'#38514c','center');
+
+  // Three mini-game gates
+  const gx1=w*.28,gx2=w*.55,gx3=w*.80;
+  const gy=h-130;
+
+  // Gate 1: Mario
+  rect(gx1-55,gy-38,110,76,'#f7f4ea');
+  rect(gx1-46,gy-28,92,56,'#314046');
+  // Pipe icon
+  rect(gx1-12,gy-10,24,28,'#5aa6a5');
+  rect(gx1-16,gy-14,32,8,'#5aa6a5');
+  rect(gx1-4,gy+14,8,10,'#f0c85a');
+  text('水管工冒充者',gx1,gy+58,10,'#263238','center');
+
+  // Gate 2: Corgi Chase Fish
+  rect(gx2-55,gy-38,110,76,'#f7f4ea');
+  rect(gx2-46,gy-28,92,56,'#314046');
+  // Corgi icon
+  rect(gx2-10,gy-14,20,14,'#d99a4e');
+  rect(gx2+6,gy-18,8,8,'#f0b868');
+  rect(gx2-14,gy+4,12,10,'#6aa6a5'); // fish
+  rect(gx2-16,gy+2,3,3,'#6aa6a5'); // fish tail
+  text('柯基追鱼',gx2,gy+58,10,'#263238','center');
+
+  // Gate 3: Koi Blessing
+  rect(gx3-55,gy-38,110,76,'#f7f4ea');
+  rect(gx3-46,gy-28,92,56,'#314046');
+  // Koi icon
+  rect(gx3-14,gy-12,28,20,'#e45f42');
+  rect(gx3-18,gy-6,6,8,'#e45f42');
+  rect(gx3+10,gy-14,6,4,'#f0c85a');
+  text('锦鲤保佑',gx3,gy+58,10,'#263238','center');
+
+  // Water bar on street
+  rect(70,h-165,75,58,'#5aa6a5');
+  rect(78,h-157,59,42,'#82c6c0');
+  for(let i=0;i<3;i++) rect(86+(t*.05+i*28)%48,h-145+i*9,14,6,'#e45f42');
+
+  // Corgi walking on street
+  let corgiWalkX=180+Math.sin(t/800)*40;
+  rect(corgiWalkX,h-118,42,18,'#c88a3c');
+  rect(corgiWalkX+12,h-132,24,16,'#d89b4b');
+  text('小文柯基',corgiWalkX+21,h-88,10,'#263238','center');
+
+  hero(px,py);
+  portal='';
+  if(px<80&&py<86) portal='office';
+  // Gate collision
+  if(Math.abs(px-gx1)<70&&Math.abs(py-gy)<80) portal='mario';
+  if(Math.abs(px-gx2)<70&&Math.abs(py-gy)<80) portal='corgi';
+  if(Math.abs(px-gx3)<70&&Math.abs(py-gy)<80) portal='koi';
+}
+
+// Mario mini-game
+function drawMario(t,w,h){
+  statusEl.textContent='水管工冒充者 v0.2';
+  rect(0,0,w,h,'#8fcbd7');
+  rect(0,h-82,w,82,'#6e7f73');
+  text(`奶茶券 ${coins}  生命 ${lives}`,16,28,14,'#172126');
+  text('不是马里奥，是员工们用公司道具做的平台跳跃原型',w/2,28,12,'#365550','center');
+  [...marioPlatforms,[0,h-82,w,18]].forEach(p=>rect(p[0],p[1],p[2],p[3],'#b37a4d'));
+  for(let i=0;i<8;i++){const x=150+i*95;rect(x,280+Math.sin(i)*65,14,14,'#f0c85a')}
+  marioBugs.forEach(b=>{const x=b[0]+Math.sin(t/550+b[2])*36;rect(x,b[1],28,22,'#263238');rect(x+5,b[1]+6,5,5,'#e76f51');rect(x+18,b[1]+6,5,5,'#e76f51')});
+  rect(w-72,170,16,90,'#365550');rect(w-72,170,58,32,'#e5b94d');text('交付',w-42,190,11,'#172126','center');
+  // Back button
+  rect(10,10,56,28,'#f7f4ea');text('返回',38,29,10,'#38514c','center');
+  hero(px,py);
+  portal=px>w-100&&py<275?'win':'';
+}
+
+// Corgi Chase Fish mini-game
+function drawCorgiGame(t,w,h){
+  statusEl.textContent='柯基追鱼 v0.1';
+  // Sky
+  rect(0,0,w,h,'#8fcbd7');
+  // Ground
+  rect(0,h-60,w,60,'#6e7f73');
+  text(`得分 ${corgiState.score}   时间 ${Math.max(0,30-Math.floor(t/1000)%30)}s`,16,28,14,'#172126');
+  text('控制柯基吃掉游动的鱼！',w/2,28,12,'#365550','center');
+
+  // Fish targets
+  corgiState.fishes.forEach((f,i)=>{
+    f.x=f.x+f.dx;
+    if(f.x<-10||f.x>w+10) f.dx*=-1;
+    f.y=f.by+Math.sin(t/300+i*2)*20;
+    // Fish body
+    rect(f.x,f.y,16,10,'#6aa6a5');
+    rect(f.x+(f.dx>0?14:-4),f.y+2,4,6,'#6aa6a5');
+    // Eye
+    rect(f.x+(f.dx>0?10:2),f.y+2,3,3,'#fff');
+  });
+
+  // Corgi player
+  let cx=corgiState.playerX,cy=corgiState.playerY;
+  rect(cx,cy+10,40,14,'#d99a4e');
+  rect(cx+28,cy,20,14,'#f0b868');
+  rect(cx+32,cy-4,6,6,'#c88a3c');
+  rect(cx+40,cy-4,6,6,'#c88a3c');
+  rect(cx+32,cy+3,3,3,'#263238');
+  rect(cx+42,cy+3,3,3,'#263238');
+
+  // Back button
+  rect(10,10,56,28,'#f7f4ea');text('返回',38,29,10,'#38514c','center');
+}
+
+// Koi Blessing mini-game
+function drawKoiGame(t,w,h){
+  statusEl.textContent='锦鲤保佑 v0.1';
+  // Pond
+  rect(0,0,w,h,'#6aa6a5');
+  rect(40,40,w-80,h-120,'#82c6c0');
+  text(`分数 ${koiState.score}   点击锦鲤`,16,28,14,'#172126');
+
+  // Koi fish swimming
+  koiState.koi.forEach((k,i)=>{
+    k.x=k.x+k.dx;
+    k.y=k.by+Math.sin(t/400+i*3)*15;
+    if(k.x>w+20) k.x=-20;
+    if(k.x<-20) k.x=w+20;
+    // Koi body
+    rect(k.x,k.y,24,14,k.color);
+    rect(k.x+(k.dx>0?20:-6),k.y+2,8,10,k.color);
+    // Pattern
+    rect(k.x+4,k.y+2,8,6,'#f0c85a');
+    // Eye
+    rect(k.x+(k.dx>0?18:4),k.y+3,3,3,'#fff');
+  });
+
+  // Back button
+  rect(10,10,56,28,'#f7f4ea');text('返回',38,29,10,'#38514c','center');
+}
+
+// Physics
+function physics(w,h){
+  vx=(keys.right?3.1:0)-(keys.left?3.1:0);
+  px+=vx;
+
+  if(mode==='mario'){
+    vy+=.45;py+=vy;onGround=false;
+    const all=[...marioPlatforms,[0,h-82,w,18]];
+    for(const p of all){
+      if(px>p[0]-12&&px<p[0]+p[2]+12&&py+12>p[1]&&py+12<p[1]+22&&vy>=0){
+        py=p[1]-12;vy=0;onGround=true;
+      }
+    }
+    if(keys.act&&onGround){vy=-9;keys.act=false}
+    if(py>h+40){px=60;py=300;vy=0;lives=Math.max(1,lives-1)}
+    // Collect coins
+    for(let i=0;i<8;i++){
+      const x=150+i*95;
+      const cy=280+Math.sin(i)*65;
+      if(Math.abs(px-x)<14&&Math.abs(py-cy)<14){coins++;i=-1}
+    }
+  } else if(mode==='corgi'){
+    // Corgi horizontal movement
+    corgiState.playerX+=vx*1.5;
+    corgiState.playerX=Math.max(0,Math.min(w-44,corgiState.playerX));
+    corgiState.playerY=h-82;
+    // Collision with fish
+    corgiState.fishes.forEach((f,i)=>{
+      if(Math.abs(corgiState.playerX+20-f.x-8)<20&&Math.abs(corgiState.playerY+10-f.y-5)<14){
+        corgiState.score++;
+        f.dx=(Math.random()>0.5?1:-1)*(1+Math.random());
+        f.by=80+Math.random()*(h-160);
+      }
+    });
+  } else if(mode==='koi'){
+    // Koi: move player to click position (handled by click event)
+    koiState.playerX+=(koiState.targetX-koiState.playerX)*0.1;
+    koiState.playerY+=(koiState.targetY-koiState.playerY)*0.1;
+    // Collision with koi
+    koiState.koi.forEach((k,i)=>{
+      if(Math.abs(koiState.playerX-k.x-12)<24&&Math.abs(koiState.playerY-k.y-7)<18){
+        koiState.score++;
+        k.dx=(Math.random()>0.5?1:-1)*(1.5+Math.random()*2);
+        k.by=60+Math.random()*(h-160);
+      }
+    });
+  } else {
+    // Office/street: vertical movement allowed
+    py+=((keys.act?-2:0));
+    py=Math.max(72,Math.min(h-70,py));
+  }
+  px=Math.max(20,Math.min(w-20,px));
+}
+
+let koiTargetX=0,koiTargetY=0;
+
+function initCorgiGame(w,h){
+  corgiState={playerX:w/2-20,playerY:h-82,fishes:[],score:0,time:0,active:true};
+  for(let i=0;i<5;i++){
+    corgiState.fishes.push({
+      dx:(Math.random()>0.5?1:-1)*(0.8+Math.random()),
+      dy:0,
+      x:50+Math.random()*(w-100),
+      y:0,
+      by:80+Math.random()*(h-160)
+    });
+  }
+}
+
+function initKoiGame(w,h){
+  koiState={playerX:w/2,targetX:w/2,targetY:h/2,koi:[],score:0,active:true};
+  const colors=['#e45f42','#f0c85a','#ffffff','#6aa6a5'];
+  for(let i=0;i<6;i++){
+    koiState.koi.push({
+      dx:(Math.random()>0.5?1:-1)*(1+Math.random()),
+      x:Math.random()*w,
+      y:0,
+      by:60+Math.random()*(h-160),
+      color:colors[i%colors.length]
+    });
+  }
+}
+
+function frame(t){
+  const w=canvas.clientWidth,h=canvas.clientHeight;
+  if(!last)last=t;
+  physics(w,h);
+  if(mode==='office') drawOffice(t,w,h);
+  else if(mode==='street') drawStreet(t,w,h);
+  else if(mode==='mario') drawMario(t,w,h);
+  else if(mode==='corgi') drawCorgiGame(t,w,h);
+  else if(mode==='koi') drawKoiGame(t,w,h);
+  last=t;
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+function act(){
+  if(mode==='office'&&portal==='street'){
+    mode='street';px=70;py=120;
+    msgEl.textContent='你从办公室出来了。小游戏入口都在公司外部街区。回到办公室可按左侧EXIT。';
+  } else if(mode==='street'&&portal==='office'){
+    mode='office';px=canvas.clientWidth-120;py=100;
+    msgEl.textContent='回到办公室。这里是员工聊天、资产交互和任务母世界。';
+  } else if(mode==='street'&&portal==='mario'){
+    mode='mario';px=60;py=300;vy=0;coins=0;lives=3;
+    msgEl.textContent='水管工冒充者启动：收集奶茶券，躲避Bug，到达交付旗。';
+  } else if(mode==='street'&&portal==='corgi'){
+    mode='corgi';initCorgiGame(canvas.clientWidth,canvas.clientHeight);
+    msgEl.textContent='柯基追鱼：控制柯基吃掉游动的鱼！限时30秒。';
+  } else if(mode==='street'&&portal==='koi'){
+    mode='koi';initKoiGame(canvas.clientWidth,canvas.clientHeight);
+    msgEl.textContent='锦鲤保佑：点击屏幕移动，触碰锦鲤获取好运！';
+  } else if(mode==='mario'&&portal==='win'){
+    msgEl.textContent=`通关！获得奶茶券 ${coins} 张。返回街区继续探索。`;
+    mode='street';px=canvas.clientWidth*.36;py=230;
+  } else if(mode==='mario'){
+    keys.act=true;
+  } else if(mode==='corgi'&&portal==='back'){
+    mode='street';px=canvas.clientWidth*.55;py=canvas.clientHeight-130;
+    msgEl.textContent=`柯基追鱼结束！吃到 ${corgiState.score} 条鱼。回到街区继续探索。`;
+  } else if(mode==='koi'&&portal==='back'){
+    mode='street';px=canvas.clientWidth*.80;py=canvas.clientHeight-130;
+    msgEl.textContent=`锦鲤保佑结束！获得 ${koiState.score} 分好运！回到街区继续探索。`;
+  } else if(portal==='fish_talk'){
+    msgEl.textContent='鱼缸里有三条鱼：一条红鲤鱼、一条蓝唐王、一条柯基暗恋的对象。';
+  } else if(portal==='coffee'){
+    msgEl.textContent='咖啡机冒着热气，水吧还有制冰机和打奶泡设备。老板说今天该他请客。';
+  } else if(portal==='corgi_talk'){
+    msgEl.textContent='柯基摇着尾巴看着你。小文说："它刚才又对着鱼缸发呆了。"';
+  } else {
+    msgEl.textContent='靠近入口后再按行动。';
+  }
+}
+
+// Click handler for mini-games
+canvas.addEventListener('click',(e)=>{
+  const rect=canvas.getBoundingClientRect();
+  const mx=e.clientX-rect.left;
+  const my=e.clientY-rect.top;
+
+  if(mode==='koi'){
+    // Check if back button clicked
+    if(mx<66&&my<38){
+      mode='street';px=canvas.clientWidth*.80;py=canvas.clientHeight-130;
+      msgEl.textContent=`锦鲤保佑结束！获得 ${koiState.score} 分好运！回到街区继续探索。`;
+      return;
+    }
+    // Move player toward click
+    koiState.targetX=mx-12;
+    koiState.targetY=my-7;
+  }
+
+  if(mode==='corgi'){
+    // Check if back button clicked
+    if(mx<66&&my<38){
+      mode='street';px=canvas.clientWidth*.55;py=canvas.clientHeight-130;
+      msgEl.textContent=`柯基追鱼结束！吃到 ${corgiState.score} 条鱼。回到街区继续探索。`;
+      return;
+    }
+  }
+
+  if(mode==='mario'||mode==='office'||mode==='street'){
+    // Check if back button clicked
+    if(mx<66&&my<38){
+      mode='street';px=canvas.clientWidth*.36;py=canvas.clientHeight-130;
+      msgEl.textContent='返回街区。小游戏入口在公司外部。';
+    }
+  }
+});
+
+// Touch controls
+document.querySelector('#act').onclick=act;
+document.querySelector('#left').onpointerdown=()=>keys.left=true;
+document.querySelector('#left').onpointerup=()=>keys.left=false;
+document.querySelector('#right').onpointerdown=()=>keys.right=true;
+document.querySelector('#right').onpointerup=()=>keys.right=false;
+addEventListener('keydown',e=>{
+  if(e.key==='ArrowLeft'||e.key==='a')keys.left=true;
+  if(e.key==='ArrowRight'||e.key==='d')keys.right=true;
+  if(e.key===' '||e.key==='ArrowUp'||e.key==='w')act();
+});
+addEventListener('keyup',e=>{
+  if(e.key==='ArrowLeft'||e.key==='a')keys.left=false;
+  if(e.key==='ArrowRight'||e.key==='d')keys.right=false;
+});
+</script>
+</body>
+</html>

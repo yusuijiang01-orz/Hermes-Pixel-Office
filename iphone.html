@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Hermes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#18232a">
+  <link rel="manifest" href="/iphone-manifest.json">
+  <title>Hermes iPhone Client</title>
+  <style>
+    *{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#11191d;color:#1f292d;font-family:"Microsoft YaHei",Arial,sans-serif;letter-spacing:0}
+    body{touch-action:manipulation;-webkit-user-select:none;user-select:none}
+    .app{height:100%;display:grid;grid-template-rows:auto 1fr auto;background:#eef0e8}
+    header{padding:calc(env(safe-area-inset-top) + 10px) 14px 10px;background:#18232a;color:#eef3ef;border-bottom:3px solid #0b1114}
+    .top{display:flex;align-items:center;gap:10px}.avatar{width:42px;height:42px;display:grid;place-items:center;background:#4aa6a0;border:3px solid #293438;color:#fff;font-weight:900;box-shadow:4px 4px 0 #61707a}
+    .title{min-width:0}.title h1{margin:0;font-size:21px;line-height:1}.title p{margin:6px 0 0;color:#9eb5b0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .status{margin-left:auto;text-align:right;font-size:11px;color:#d7c67b}.status b{display:block;color:#8ed8aa;font-size:12px}
+    main{min-height:0;position:relative}.page{display:none;height:100%;overflow:auto;-webkit-overflow-scrolling:touch;padding:14px 14px 92px}.page.active{display:block}
+    .card{background:#fffaf0;border:3px solid #5d6b70;box-shadow:5px 5px 0 #b6bec6;margin-bottom:14px}.card-head{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:2px solid #d7d1bf;color:#334148;font-weight:900}.card-body{padding:12px}
+    .chips{display:flex;gap:8px;flex-wrap:wrap}.chip{padding:5px 8px;border:2px solid #bcc5c9;background:#f7f4ea;color:#526168;font-size:12px}.chip.live{border-color:#66b98b;color:#256547}.chip.warn{border-color:#d46b57;color:#a13e32}
+    canvas{display:block;width:100%;height:360px;background:#d8c8a4;image-rendering:pixelated;touch-action:none}
+    .agent-list{display:grid;gap:10px}.agent{display:grid;grid-template-columns:48px 1fr auto;gap:10px;align-items:center;padding:10px;border:2px solid #d4d0c2;background:#fffdf5}.agent .face{width:42px;height:42px;display:grid;place-items:center;background:#4aa6a0;color:#fff;border:3px solid #293438;box-shadow:3px 3px 0 #9aa5ad;font-weight:900}.agent h3{margin:0;font-size:16px}.agent p{margin:4px 0 0;color:#7a8788;font-size:12px}.agent button,.send,.ghost{height:34px;border:3px solid #314046;background:#f0c85a;color:#172126;font-weight:900;box-shadow:3px 3px 0 #b9a04a}
+    .thread-tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px}.thread-tabs button{height:40px;border:3px solid #314046;background:#172126;color:#dfe7e3;font-weight:900}.thread-tabs button.active{background:#f0c85a;color:#172126}
+    .chat-log{display:flex;flex-direction:column;gap:10px;min-height:320px;max-height:calc(100vh - 310px);overflow:auto;-webkit-overflow-scrolling:touch;padding:10px;background:#f7f4ea;border:3px solid #5d6b70;box-shadow:4px 4px 0 #b6bec6}
+    .bubble{max-width:88%;padding:9px 10px;border:2px solid #5d6b70;background:#fffaf0;white-space:pre-wrap;line-height:1.45}.mine{align-self:flex-end;background:#d9f0e6}.theirs{align-self:flex-start}.pending{color:#7e8a8a}.name{display:block;color:#b88222;font-size:12px;font-weight:900;margin-bottom:4px}.time{color:#8a9999;font-size:11px;margin-left:6px}
+    .compose{position:sticky;bottom:0;margin-top:10px;display:grid;grid-template-columns:1fr 48px;gap:8px;padding:8px 0;background:#eef0e8}.compose input{height:44px;border:3px solid #5d6b70;background:#fffaf0;padding:0 10px;font-size:16px;color:#1f292d}.send{height:44px;font-size:18px}
+    .settings{display:grid;gap:12px}.field label{display:block;font-size:12px;color:#5c696d;font-weight:900;margin-bottom:5px}.field input{width:100%;height:42px;border:3px solid #5d6b70;background:#fffaf0;padding:0 10px;font-size:14px;color:#1f292d}.row{display:flex;gap:8px}.row button{flex:1}
+    nav{position:fixed;left:0;right:0;bottom:0;padding:8px 12px calc(env(safe-area-inset-bottom) + 8px);display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;background:#eef0e8;border-top:3px solid #5d6b70}nav button{height:48px;border:3px solid #314046;background:#172126;color:#dfe7e3;font-weight:900;box-shadow:3px 3px 0 #b6bec6}nav button.active{background:#f0c85a;color:#172126}
+    .empty{padding:30px 10px;text-align:center;color:#71817e;line-height:1.7}.small{font-size:12px;color:#6f7d80;line-height:1.65}.notice{padding:10px;border:2px solid #d7c67b;background:#fff7d4;color:#5a4b1d;font-size:12px;line-height:1.5}
+  </style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="top">
+      <div class="avatar">H</div>
+      <div class="title"><h1>Hermes</h1><p id="subtitle">iPhone 本地客户端</p></div>
+      <div class="status"><b id="conn">未连接</b><span id="clock">--:--</span></div>
+    </div>
+  </header>
+  <main>
+    <section class="page active" id="page-company">
+      <div class="card">
+        <div class="card-head"><span>像素公司</span><span id="project">未读取</span></div>
+        <canvas id="office"></canvas>
+      </div>
+      <div class="chips" id="chips"></div>
+      <div class="card">
+        <div class="card-head"><span>员工状态</span><button class="ghost" id="refreshBtn" type="button">刷新</button></div>
+        <div class="card-body"><div class="agent-list" id="agents"></div></div>
+      </div>
+    </section>
+    <section class="page" id="page-chat">
+      <div class="thread-tabs">
+        <button class="active" id="groupTab" type="button">全员群聊</button>
+        <button id="privateTab" type="button">私聊</button>
+      </div>
+      <div class="card" id="privatePicker" style="display:none">
+        <div class="card-head"><span>选择员工</span><span id="currentAgent">阿默</span></div>
+        <div class="card-body"><div class="chips" id="agentPick"></div></div>
+      </div>
+      <div class="chat-log" id="chatLog"><div class="empty">还没有连接远程 Hermes。</div></div>
+      <form class="compose" id="chatForm">
+        <input id="message" maxlength="2000" autocomplete="off" placeholder="输入消息...">
+        <button class="send" type="submit">↗</button>
+      </form>
+    </section>
+    <section class="page" id="page-settings">
+      <div class="card">
+        <div class="card-head"><span>连接设置</span><span id="saveState">本地保存</span></div>
+        <div class="card-body settings">
+          <div class="field"><label>Base URL</label><input id="baseUrl" placeholder="https://pix.lovenom.eu.org"></div>
+          <div class="field"><label>API Key</label><input id="apiKey" placeholder="未启用可留空" type="password"></div>
+          <div class="row"><button class="ghost" id="saveConfig" type="button">保存配置</button><button class="ghost" id="testConfig" type="button">测试连接</button></div>
+          <div class="notice">这个版本只在 iPhone 本地缓存界面和最近状态。Agent、文件、任务执行仍然跑在远程 Hermes 上。</div>
+          <p class="small">添加到主屏幕后，Safari 会缓存这个客户端。远程慢时，页面壳会先打开，再同步远程状态。</p>
+        </div>
+      </div>
+    </section>
+  </main>
+  <nav>
+    <button class="active" data-tab="company">公司</button>
+    <button data-tab="chat">聊天</button>
+    <button data-tab="settings">设置</button>
+  </nav>
+</div>
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const cfgKey="hermes-iphone-config-v1",stateKey="hermes-iphone-state-v1";
+let config=loadConfig(),state=loadCachedState(),mode="group",agent="default",source=null,refreshTimer=0,lastDraw=0;
+const canvas=$("#office"),ctx=canvas.getContext("2d");
+const colors={default:"#4aa6a0",planner:"#e7b34d",researcher:"#e45a9c",writer:"#a878d1"};
+const names={default:"阿默",planner:"小韩",researcher:"小研",writer:"小文"};
+function loadConfig(){try{return JSON.parse(localStorage.getItem(cfgKey)||"{}")}catch{return{}}}
+function saveConfig(){localStorage.setItem(cfgKey,JSON.stringify(config))}
+function loadCachedState(){try{return JSON.parse(localStorage.getItem(stateKey)||"null")}catch{return null}}
+function cacheState(){if(state)localStorage.setItem(stateKey,JSON.stringify(state))}
+function base(){return String(config.baseUrl||location.origin).replace(/\/+$/,"")}
+function api(path){return base()+path}
+function headers(){const h={"Content-Type":"application/json"};if(config.apiKey)h["X-Hermes-Api-Key"]=config.apiKey;return h}
+function fmtTime(ts){if(!ts)return"";const d=new Date(Number(ts)*1000);return d.toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit",hour12:false})}
+function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
+function clean(text){return String(text||"").replace(/\[CHAT\]\s*/g,"").trim()}
+function fit(){const r=canvas.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2);canvas.width=r.width*d;canvas.height=r.height*d;ctx.setTransform(d,0,0,d,0,0)}
+addEventListener("resize",()=>{fit();drawOffice(performance.now())});fit();
+function px(x,y,w,h,c){ctx.fillStyle=c;ctx.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h))}
+function label(t,x,y,c="#27343b",size=11){ctx.fillStyle=c;ctx.font=`900 ${size}px Microsoft YaHei`;ctx.fillText(t,x,y)}
+function desk(x,y,id,on){px(x,y,112,45,"#9d6f45");px(x+34,y-28,50,34,"#253033");px(x+39,y-23,40,20,on?"#a9eee0":"#6e928d");px(x+10,y+45,10,27,"#6d4d34");px(x+92,y+45,10,27,"#6d4d34");px(x+82,y+8,16,30,"#263130");px(x+100,y+10,10,20,"#54705c")}
+function person(x,y,id,mode){px(x-10,y+12,8,11,"#263238");px(x+3,y+12,8,11,"#263238");px(x-13,y-7,26,22,colors[id]||"#4aa6a0");px(x-11,y-24,22,18,"#efbd9d");px(x-12,y-27,24,8,"#263238");if(mode==="blocked")label("!",x-3,y-32,"#d34b42",16);px(x-35,y+27,70,16,"#263432dd");label(names[id]||id,x-12,y+39,"#fff",10)}
+function aquarium(x,y,t){px(x,y,128,54,"#314046");px(x+4,y+4,120,42,"#72bbb4");for(let i=0;i<4;i++)px(x+12+i*28,y+37,8,8,i%2?"#5e8d68":"#8b7e57");for(let i=0;i<4;i++){const lane=100,sw=(t*(.018+i*.004)+i*31)%(lane*2),f=sw<lane,xx=x+12+(f?sw:lane*2-sw),yy=y+12+i*8+Math.sin(t/350+i)*3;px(xx,yy,13,6,i%2?"#f0a24f":"#e45f42");px(xx+(f?-4:12),yy+2,5,3,"#f7ca66")}}
+function corgi(x,y,t){const wag=Math.sin(t/180)*3,step=Math.round(Math.sin(t/120)*2);px(x,y+8,34,14,"#d99a4e");px(x+22,y,18,15,"#f0b868");px(x+25,y+5,3,3,"#263238");px(x+35,y+5,3,3,"#263238");px(x-4+wag,y+7,7,4,"#d99a4e");px(x+3,y+22+step,5,7,"#8b5a2b");px(x+12,y+22-step,5,7,"#7a4f28");px(x+23,y+22-step,5,7,"#8b5a2b");px(x+32,y+22+step,5,7,"#7a4f28")}
+function drawOffice(t=0){
+  const w=canvas.clientWidth,h=canvas.clientHeight;ctx.clearRect(0,0,w,h);
+  px(0,0,w,h,"#d8c8a4");px(0,0,w,86,"#9ac99f");px(14,18,w-28,44,"#93c9c4");px(0,82,w,12,"#30494b");
+  for(let y=100;y<h;y+=24)for(let x=0;x<w;x+=84)px(x+(y%48),y,80,21,(x+y)%2?"#dfd1b2":"#cdbd9d");
+  px(w*.35,100,w*.3,24,"#365550");label("HERMES VILLA",w*.42,116,"#f3d486",10);
+  const agents=state?.agents||[];
+  const map=Object.fromEntries(agents.map(a=>[a.id,a]));
+  desk(42,150,"default",map.default?.status==="working");desk(w-154,150,"planner",map.planner?.status==="working");
+  desk(42,270,"researcher",map.researcher?.status==="working");desk(w-154,270,"writer",map.writer?.status==="working");
+  aquarium(Math.max(120,w/2-64),126,t);
+  px(w-116,238,94,56,"#efeadb");px(w-108,250,22,32,"#303a3a");px(w-78,246,24,36,"#e9eee9");px(w-43,252,18,30,"#d9d2c1");
+  person(98,220,"default",map.default?.status);person(w-98,220,"planner",map.planner?.status);person(98,340,"researcher",map.researcher?.status);person(w-98,340,"writer",map.writer?.status);
+  corgi(w-70,326,t);
+}
+function loop(t){lastDraw=t;drawOffice(t);requestAnimationFrame(loop)}requestAnimationFrame(loop);
+function render(){
+  $("#subtitle").textContent=base();
+  const world=state?.world||{};$("#clock").textContent=world.clock||"--:--";$("#project").textContent=state?.board?.name||"未读取";
+  $("#chips").innerHTML=[
+    `<span class="chip ${state?"live":"warn"}">${state?"已同步":"未连接"}</span>`,
+    `<span class="chip">${esc(world.weather||"天气未知")}</span>`,
+    `<span class="chip">${esc(world.label||"阶段未知")}</span>`,
+    `<span class="chip">${(state?.agents||[]).length||0} 人在线</span>`
+  ].join("");
+  $("#agents").innerHTML=(state?.agents||[]).map(a=>`<div class="agent"><div class="face">${esc(a.short||names[a.id]||"?").slice(0,1)}</div><div><h3>${esc(a.short||a.name)}</h3><p>${esc(a.role||"员工")} · ${esc(a.status_label||a.status||"待命")}</p></div><button data-chat="${esc(a.id)}">私聊</button></div>`).join("")||`<div class="empty">还没有读取到员工状态。</div>`;
+  $("#agentPick").innerHTML=(state?.agents||[{id:"default",short:"阿默"},{id:"planner",short:"小韩"},{id:"researcher",short:"小研"},{id:"writer",short:"小文"}]).map(a=>`<button class="ghost" data-pick="${esc(a.id)}">${esc(a.short||names[a.id]||a.id)}</button>`).join("");
+  $("#currentAgent").textContent=names[agent]||agent;
+  renderChat();
+}
+function validLines(m){return (m.chat_lines||[]).map(clean).filter(Boolean)}
+function renderChat(){
+  const all=state?.messages||[],log=$("#chatLog");
+  let html="";
+  if(mode==="group"){
+    const groups=all.filter(m=>m.mode==="group").sort((a,b)=>(a.created||0)-(b.created||0));
+    for(const m of groups){
+      if(m.origin==="boss"&&m.prompt)html+=`<div class="bubble mine">${esc(m.prompt)}<span class="time">${fmtTime(m.created)}</span></div>`;
+      const speaker=(m.name||names[m.agent]||"员工").split(" ").slice(-1)[0];
+      const lines=validLines(m);
+      if(lines.length)html+=lines.map(line=>`<div class="bubble theirs"><span class="name">${esc(speaker)}<span class="time">${fmtTime(m.created)}</span></span>${esc(line)}</div>`).join("");
+      else if(!m.reply)html+=`<div class="bubble theirs pending"><span class="name">${esc(speaker)}</span>正在输入...</div>`;
+    }
+  }else{
+    for(const m of all.filter(m=>m.mode!=="group"&&m.agent===agent).sort((a,b)=>(a.created||0)-(b.created||0))){
+      html+=`<div class="bubble mine">${esc(m.prompt)}<span class="time">${fmtTime(m.created)}</span></div>`;
+      html+=m.reply?`<div class="bubble theirs"><span class="name">${esc(names[m.agent]||"员工")}</span>${esc(clean(m.reply))}</div>`:`<div class="bubble theirs pending"><span class="name">${esc(names[m.agent]||"员工")}</span>正在输入...</div>`;
+    }
+  }
+  log.innerHTML=html||`<div class="empty">暂无聊天记录。</div>`;
+  requestAnimationFrame(()=>{log.scrollTop=log.scrollHeight});
+}
+async function fetchState(){
+  const resp=await fetch(api("/api/state"),{headers:headers(),cache:"no-store"});
+  const data=await resp.json();
+  if(!resp.ok||data.error)throw Error(data.error||"连接失败");
+  state=data;cacheState();$("#conn").textContent="已连接";render();
+}
+function schedule(){clearTimeout(refreshTimer);refreshTimer=setTimeout(()=>fetchState().catch(showError).finally(schedule),5000)}
+function startRealtime(){
+  if(source)source.close();
+  const q=config.apiKey?`?api_key=${encodeURIComponent(config.apiKey)}`:"";
+  try{
+    source=new EventSource(api("/api/events")+q);
+    source.onopen=()=>{$("#conn").textContent="长连接"};
+    source.addEventListener("state",e=>{state=JSON.parse(e.data);cacheState();render()});
+    source.onerror=()=>{$("#conn").textContent="轮询中";source?.close();source=null;schedule()}
+  }catch{schedule()}
+}
+function showError(err){$("#conn").textContent="连接失败";$("#subtitle").textContent=err.message||String(err)}
+async function sendMessage(text){
+  const body={mode,agent:mode==="private"?agent:null,message:text,attachments:[]};
+  const resp=await fetch(api("/api/message"),{method:"POST",headers:headers(),body:JSON.stringify(body)});
+  const data=await resp.json().catch(()=>({}));
+  if(!resp.ok||data.error)throw Error(data.error||"发送失败");
+  if(data.messages?.length){state=state||{};state.messages=[...(state.messages||[]),...data.messages];renderChat()}
+  fetchState().catch(()=>{});
+}
+$("#chatForm").addEventListener("submit",async e=>{e.preventDefault();const input=$("#message"),text=input.value.trim();if(!text)return;input.value="";try{await sendMessage(text)}catch(err){alert(err.message)}});
+$("#groupTab").addEventListener("click",()=>{mode="group";$("#groupTab").classList.add("active");$("#privateTab").classList.remove("active");$("#privatePicker").style.display="none";renderChat()});
+$("#privateTab").addEventListener("click",()=>{mode="private";$("#privateTab").classList.add("active");$("#groupTab").classList.remove("active");$("#privatePicker").style.display="block";renderChat()});
+document.addEventListener("click",e=>{
+  const tab=e.target.closest("nav button[data-tab]");if(tab){$$("nav button").forEach(b=>b.classList.toggle("active",b===tab));$$(".page").forEach(p=>p.classList.toggle("active",p.id==="page-"+tab.dataset.tab));return}
+  const chat=e.target.closest("[data-chat]");if(chat){mode="private";agent=chat.dataset.chat;$("nav button[data-tab='chat']").click();$("#privateTab").click();render();return}
+  const pick=e.target.closest("[data-pick]");if(pick){agent=pick.dataset.pick;render()}
+});
+$("#refreshBtn").addEventListener("click",()=>fetchState().catch(showError));
+$("#saveConfig").addEventListener("click",()=>{config={baseUrl:$("#baseUrl").value.trim()||location.origin,apiKey:$("#apiKey").value.trim()};saveConfig();$("#saveState").textContent="已保存";start()});
+$("#testConfig").addEventListener("click",()=>fetchState().then(()=>alert("连接成功")).catch(err=>alert(err.message)));
+function start(){
+  $("#baseUrl").value=config.baseUrl||location.origin;$("#apiKey").value=config.apiKey||"";
+  if(state)render();
+  fetchState().then(startRealtime).catch(err=>{showError(err);schedule()});
+}
+if("serviceWorker" in navigator)navigator.serviceWorker.register("/iphone-sw.js").catch(()=>{});
+start();
+</script>
+</body>
+</html>

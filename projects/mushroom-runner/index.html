@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>Mushroom Runner</title>
+  <style>
+    *{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#6fb7d7;font-family:"Microsoft YaHei",system-ui,sans-serif;color:#172026}
+    .game{height:100%;display:grid;grid-template-rows:auto 1fr auto;background:linear-gradient(#7dc7e5 0 62%,#9ed47b 62% 100%)}
+    header{height:48px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 14px;background:#172126;color:#f7f4ea;border-bottom:4px solid #0b1114}
+    header b{color:#f2c14e}.hud{display:flex;gap:12px;font-size:13px}.wrap{position:relative;min-height:0}
+    canvas{width:100%;height:100%;display:block;image-rendering:pixelated;background:linear-gradient(#7dc7e5 0 62%,#9ed47b 62% 100%)}
+    .pad{height:86px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;padding:10px;background:#172126;border-top:4px solid #0b1114}
+    button{border:3px solid #0b1114;background:#f2c14e;color:#172026;font-weight:900;font-size:18px;box-shadow:0 5px 0 #835f1d}
+    .back{height:34px;padding:0 10px;font-size:12px;white-space:nowrap}
+    button:active{transform:translateY(3px);box-shadow:0 2px 0 #835f1d}
+    .hint{position:absolute;left:12px;bottom:12px;padding:8px 10px;background:#172126d8;color:#f7f4ea;border:2px solid #40565c;font-size:12px;line-height:1.5}
+    @media(min-width:720px){.pad{display:none}header{height:52px}.hint{font-size:13px}}
+  </style>
+</head>
+<body>
+<div class="game">
+  <header><button class="back" id="back">← 返回宇宙广场</button><div><b>MUSHROOM</b> RUNNER</div><div class="hud"><span id="coins">金币 0</span><span id="lives">生命 3</span><span id="time">时间 120</span></div></header>
+  <div class="wrap"><canvas id="c"></canvas><div class="hint">方向键 / A D 移动，空格跳跃。手机用下方按钮。踩怪、吃金币、到达旗帜。</div></div>
+  <div class="pad"><button id="left">←</button><button id="jump">跳</button><button id="right">→</button></div>
+</div>
+<script>
+const canvas=document.querySelector('#c'),ctx=canvas.getContext('2d');
+document.querySelector('#back').addEventListener('click',()=>{location.href='/projects/companyverse/index.html'});
+const keys={left:false,right:false,jump:false},tile=32,gravity=.62;
+let W=0,H=0,cam=0,last=0,coins=0,lives=3,timeLeft=120,win=false,deadTimer=0;
+const level=[
+"........................................................................................",
+"........................................................................................",
+"........................................................................................",
+"......................C......................C.................C........................",
+".............###..................###..................####.............................",
+".........................E..............................................C...............",
+".....C..............#######..............C...........E............#######...............",
+"............E..................................#####....................................",
+"....#####.................C.........###.................................E...........F....",
+"..................................................................................###...",
+"################..############..###############..#############..########################"
+];
+const worldW=level[0].length*tile,worldH=level.length*tile;
+const player={x:70,y:120,w:22,h:28,vx:0,vy:0,on:false,face:1,inv:0,coyote:0,jumpBuffer:0};
+const enemies=[],coinMap=new Set();
+for(let y=0;y<level.length;y++)for(let x=0;x<level[y].length;x++){const ch=level[y][x];if(ch==='E')enemies.push({x:x*tile+4,y:y*tile+6,w:24,h:22,vx:-.7,alive:true});if(ch==='C')coinMap.add(`${x},${y}`)}
+function fit(){const d=Math.min(devicePixelRatio||1,2);W=canvas.clientWidth;H=canvas.clientHeight;canvas.width=W*d;canvas.height=H*d;ctx.setTransform(d,0,0,d,0,0)}addEventListener('resize',fit);fit();
+function solidAt(px,py){const x=Math.floor(px/tile),y=Math.floor(py/tile);return y<0||y>=level.length||x<0||x>=level[0].length?false:level[y][x]==='#'}
+function flagAt(px,py){const x=Math.floor(px/tile),y=Math.floor(py/tile);return y>=0&&y<level.length&&x>=0&&x<level[0].length&&level[y][x]==='F'}
+function rects(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}
+function move(obj){
+  obj.x+=obj.vx;
+  if(obj.vx>0&&(solidAt(obj.x+obj.w,obj.y+2)||solidAt(obj.x+obj.w,obj.y+obj.h-2)))obj.x=Math.floor((obj.x+obj.w)/tile)*tile-obj.w-1;
+  if(obj.vx<0&&(solidAt(obj.x,obj.y+2)||solidAt(obj.x,obj.y+obj.h-2)))obj.x=Math.floor(obj.x/tile+1)*tile+1;
+  obj.y+=obj.vy;obj.on=false;
+  if(obj.vy>0&&(solidAt(obj.x+3,obj.y+obj.h)||solidAt(obj.x+obj.w-3,obj.y+obj.h))){obj.y=Math.floor((obj.y+obj.h)/tile)*tile-obj.h;obj.vy=0;obj.on=true}
+  if(obj.vy<0&&(solidAt(obj.x+3,obj.y)||solidAt(obj.x+obj.w-3,obj.y))){obj.y=Math.floor(obj.y/tile+1)*tile;obj.vy=0}
+}
+function respawn(){lives--;player.x=70;player.y=120;player.vx=0;player.vy=0;player.inv=120;if(lives<=0){lives=3;coins=0;timeLeft=120;coinMap.clear();for(let y=0;y<level.length;y++)for(let x=0;x<level[y].length;x++)if(level[y][x]==='C')coinMap.add(`${x},${y}`);enemies.forEach(e=>e.alive=true)}}
+function update(dt){
+  if(win)return;
+  const step=Math.min(dt/16.666,2);
+  timeLeft=Math.max(0,timeLeft-dt/1000); if(timeLeft<=0)respawn();
+  const target=(keys.right?3.1:0)-(keys.left?3.1:0);
+  player.vx+=(target-player.vx)*.28;
+  if(Math.abs(player.vx)<.05)player.vx=0;
+  if(player.vx)player.face=Math.sign(player.vx);
+  if(keys.jump)player.jumpBuffer=7;
+  if(player.on)player.coyote=8; else player.coyote=Math.max(0,player.coyote-1);
+  player.jumpBuffer=Math.max(0,player.jumpBuffer-1);
+  if(player.jumpBuffer&&player.coyote){player.vy=-11.8;player.on=false;player.coyote=0;player.jumpBuffer=0}
+  player.vy+=gravity*step; player.inv=Math.max(0,player.inv-1); move(player);
+  if(!keys.jump&&player.vy<-3)player.vy*=.86;
+  if(player.y>worldH)respawn();
+  const checks=[[player.x+player.w/2,player.y+player.h/2],[player.x+4,player.y+6],[player.x+player.w-4,player.y+player.h-4]];
+  for(const [sx,sy] of checks){
+    const cx=Math.floor(sx/tile),cy=Math.floor(sy/tile);
+    if(coinMap.delete(`${cx},${cy}`))coins++;
+  }
+  if(flagAt(player.x+player.w,player.y+player.h/2))win=true;
+  enemies.forEach(e=>{if(!e.alive)return;e.vy=(e.vy||0)+gravity;e.x+=e.vx;if(solidAt(e.x,e.y+e.h+2)||solidAt(e.x+e.w,e.y+e.h+2)){}else e.vx*=-1;if(solidAt(e.x,e.y+e.h)||solidAt(e.x+e.w,e.y+e.h))e.y=Math.floor((e.y+e.h)/tile)*tile-e.h;else e.y+=e.vy;if(solidAt(e.x,e.y+e.h)||solidAt(e.x+e.w,e.y+e.h))e.vy=0;if(rects(player,e)&&player.inv<=0){if(player.vy>2&&player.y+player.h<e.y+14){e.alive=false;player.vy=-8;coins+=2}else respawn()}});
+  cam=Math.max(0,Math.min(worldW-W,player.x-W*.36));
+  document.querySelector('#coins').textContent='金币 '+coins;document.querySelector('#lives').textContent='生命 '+lives;document.querySelector('#time').textContent='时间 '+Math.ceil(timeLeft)
+}
+function px(x,y,w,h,c){ctx.fillStyle=c;ctx.fillRect(Math.round(x-cam),Math.round(y),Math.round(w),Math.round(h))}
+function shadow(x,y,w=30,h=7){ctx.fillStyle='rgba(23,32,38,.22)';ctx.fillRect(Math.round(x-cam-w/2),Math.round(y-h/2),Math.round(w),Math.round(h))}
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  const sun=ctx.createRadialGradient(W*.22,H*.12,10,W*.22,H*.12,Math.max(W,H)*.55);
+  sun.addColorStop(0,'rgba(255,243,190,.42)');sun.addColorStop(1,'rgba(255,243,190,0)');
+  ctx.fillStyle=sun;ctx.fillRect(0,0,W,H);
+  for(let i=0;i<9;i++)px(i*160+30,60+(i%3)*28,58,18,'#fff8');
+  for(let y=0;y<level.length;y++)for(let x=0;x<level[y].length;x++){const ch=level[y][x],xx=x*tile,yy=y*tile;if(xx+tile<cam||xx>cam+W)continue;if(ch==='#'){px(xx,yy,tile,tile,'#8b5a2b');px(xx+2,yy+2,tile-4,6,'#d99a4e')}if(ch==='F'){px(xx+12,yy-44,4,76,'#263238');px(xx+16,yy-42,28,20,'#e76f51')}}
+  coinMap.forEach(k=>{const [x,y]=k.split(',').map(Number);px(x*tile+10,y*tile+8,12,16,'#f2c14e');px(x*tile+14,y*tile+10,4,12,'#fff3c7')});
+  enemies.forEach(e=>{if(e.alive){shadow(e.x+e.w/2,e.y+e.h+2,28,6);px(e.x,e.y,e.w,e.h,'#8b4b3a');px(e.x+5,e.y+5,4,4,'#fff');px(e.x+15,e.y+5,4,4,'#fff');px(e.x+6,e.y+6,2,2,'#172126');px(e.x+16,e.y+6,2,2,'#172126');px(e.x+4,e.y+18,16,4,'#263238')}});
+  const p=player; if(player.inv%10<5){shadow(p.x+p.w/2,p.y+p.h+3,32,7);px(p.x,p.y,p.w,p.h,'#e74c4c');px(p.x+5,p.y+4,12,6,'#f2c14e');px(p.x+6,p.y+12,4,4,'#263238');px(p.x+14,p.y+12,4,4,'#263238');px(p.x+8,p.y+18,7,2,'#8b4b3a');px(p.x+2,p.y+24,8,4,'#263238');px(p.x+13,p.y+24,8,4,'#263238')}
+  if(win){ctx.fillStyle='#172126dd';ctx.fillRect(0,0,W,H);ctx.fillStyle='#f7f4ea';ctx.font='700 26px Microsoft YaHei';ctx.textAlign='center';ctx.fillText('通关！Mushroom Runner v0.1',W/2,H/2);ctx.font='16px Microsoft YaHei';ctx.fillText('下一版：更多关卡、道具、敌人和编辑器',W/2,H/2+34)}
+}
+function loop(t){const dt=t-last||16;last=t;update(dt);draw();requestAnimationFrame(loop)}requestAnimationFrame(loop);
+addEventListener('keydown',e=>{if(e.key==='Escape'||e.key==='Backspace'){location.href='/projects/companyverse/index.html';return}if(e.key==='ArrowLeft'||e.key==='a')keys.left=true;if(e.key==='ArrowRight'||e.key==='d')keys.right=true;if(e.code==='Space'||e.key==='w'||e.key==='ArrowUp')keys.jump=true});
+addEventListener('keyup',e=>{if(e.key==='ArrowLeft'||e.key==='a')keys.left=false;if(e.key==='ArrowRight'||e.key==='d')keys.right=false;if(e.code==='Space'||e.key==='w'||e.key==='ArrowUp')keys.jump=false});
+function bind(id,key){const b=document.querySelector(id);['touchstart','mousedown'].forEach(ev=>b.addEventListener(ev,e=>{e.preventDefault();keys[key]=true}));['touchend','touchcancel','mouseup','mouseleave'].forEach(ev=>b.addEventListener(ev,e=>{e.preventDefault();keys[key]=false}))}
+bind('#left','left');bind('#right','right');bind('#jump','jump');
+</script>
+</body>
+</html>

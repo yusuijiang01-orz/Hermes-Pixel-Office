@@ -1,0 +1,31 @@
+# Runtime and local state
+__pycache__/
+*.pyc
+runtime_errors.log
+company_state.json
+
+# Sensitive exported conversations
+docs/user-messages-*.md
+
+# Generated output and packaged deployments
+dist/
+output/
+deploy/
+test-results/
+
+# Local uploads and bulky generated assets
+uploads/
+tools/frp/
+
+# Safety backups created during repair work
+before-restore-*/
+panic-current-broken-*/
+restore-safety-*/
+rollback-current-*/
+rollback-test-*/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+*.tmp
+*.log

@@ -1,0 +1,17 @@
+{
+  "name": "Hermes Pixel Client",
+  "short_name": "Hermes",
+  "start_url": "/iphone.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#11191d",
+  "theme_color": "#18232a",
+  "icons": [
+    {
+      "src": "/iphone-icon.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    }
+  ]
+}

@@ -1,0 +1,166 @@
+{
+  "version": 1,
+  "description": "Companyverse 地图区域扩展定义 - 由聊天触发空间任务沉淀",
+  "areas": {
+    "boss_office": {
+      "id": "boss_office",
+      "name": "老板办公室",
+      "category": "map_zone",
+      "owner": "company",
+      "location": "公司楼层上层",
+      "render_function": "drawBossOffice",
+      "navigation": {
+        "from": "office",
+        "trigger": "点击老板办公室入口",
+        "transition": "场景淡入切换"
+      },
+      "objects": [
+        {"id": "boss_desk", "name": "老板的桌子", "default_pos": [0.5, 0.6]},
+        {"id": "boss_chair", "name": "老板椅", "default_pos": [0.5, 0.65]},
+        {"id": "fish_tank_mini", "name": "小型鱼池", "default_pos": [0.8, 0.3]}
+      ],
+      "interactions": [
+        {"action": "查看项目进度", "effect": "显示当前项目状态面板"},
+        {"action": "编辑模式入口", "effect": "进入办公室编辑模式"},
+        {"action": "阅读老板语录", "effect": "随机显示一条老板的经典语录"}
+      ],
+      "notes": "drawBossOffice() 已在 index.html 第168KB处实现，但尚未作为可导航区域加入主地图"
+    },
+    "employee_homes": {
+      "id": "employee_homes",
+      "name": "员工住宅区",
+      "category": "map_zone",
+      "owner": "company",
+      "location": "公司楼下公寓楼",
+      "sub_areas": {
+        "planner_home": {
+          "render_function": "drawPlannerHome",
+          "description": "小韩的公寓，桌面永远比别人的整洁一个维度",
+          "interactions": ["查看项目看板", "阅读商业案例分析"]
+        },
+        "researcher_home": {
+          "render_function": "drawResearcherHome",
+          "description": "小研的公寓，堆满了竞品分析报告和打印的论坛帖子",
+          "interactions": ["查看数据看板", "翻阅竞品报告"]
+        },
+        "writer_home": {
+          "render_function": "drawWriterHome",
+          "description": "小文的公寓，有咖啡角和柯基的窝",
+          "interactions": ["和柯基互动", "查看写作进度"]
+        },
+        "default_home": {
+          "render_function": "drawDefaultHome",
+          "description": "阿默的公寓，睡眠区+服务器工作室",
+          "interactions": ["查看部署日志", "调试深夜代码"]
+        }
+      },
+      "notes": "各角色住宅绘制函数已存在于 index.html，但缺少导航入口和场景切换逻辑"
+    },
+    "game_hub": {
+      "id": "game_hub",
+      "name": "游戏宇宙广场",
+      "category": "map_zone",
+      "owner": "company",
+      "location": "公司入口大厅",
+      "render_function": "drawGameRoom",
+      "interactions": [
+        {"action": "进入 Relicbound ARPG", "effect": "加载 Relicbound 游戏场景"},
+        {"action": "进入小游戏", "effect": "选择并启动任意小游戏"},
+        {"action": "查看项目状态", "effect": "显示各项目进度面板"}
+      ],
+      "notes": "游戏入口按钮已存在于 HTML，需完善导航和场景切换逻辑"
+    },
+    "chat_trigger_space": {
+      "id": "chat_trigger_space",
+      "name": "聊天触发空间",
+      "category": "world_area",
+      "owner": "system",
+      "description": "由聊天内容动态生成的探索空间。当团队在聊天中提到某个概念、笑话或需求时，可能生成新的可探索区域。",
+      "mechanism": {
+        "trigger": "群聊/私聊中提到空间相关词汇",
+        "detection": "universe_category 函数识别 world_area 关键词",
+        "creation": "在 company_state.json world_areas 中自动创建条目",
+        "manifestation": "下一次宇宙沉淀时生成对应的像素场景"
+      },
+      "examples": [
+        {"chat_mention": "老板说要把柯基放进鱼缸", "resulting_space": "柯基探鱼缸互动区"},
+        {"chat_mention": "编辑模式可以随意移动工位", "resulting_space": "可编辑办公室沙盒"},
+        {"chat_mention": "奶茶补给站", "resulting_space": "奶茶站小游戏"}
+      ],
+      "notes": "这是本次任务新定义的机制类别，连接聊天内容和像素宇宙的桥梁"
+    },
+    "restroom": {
+      "id": "restroom",
+      "name": "洗手间",
+      "category": "map_zone",
+      "owner": "company",
+      "location": "办公室走廊尽头",
+      "constants": {
+        "x": "restroomX = w2 * 0.79",
+        "width": "restroomW = w2 * 0.18",
+        "y": "restroomY = 12",
+        "height": "restroomH = glassY2 - 24"
+      },
+      "interactions": [
+        {"action": "探索彩蛋", "effect": "随机触发洗手间事件"},
+        {"action": "查看公告", "effect": "显示公司最新通知"}
+      ],
+      "notes": "坐标常量已在 index.html 中定义(restroomX, restroomW)，但未在场景中渲染"
+    },
+    "plumber_impostor_game": {
+      "id": "plumber_impostor_game",
+      "name": "水管工冒充者",
+      "category": "mini_game",
+      "owner": "company",
+      "location": "游戏宇宙广场 - 街机区",
+      "description": "从聊天梗'水管工冒充者再不立项，等我们办公室被马里奥拆完了才动工'沉淀出的平台跳跃小游戏。公司员工穿红帽子冒充水管工，在平台上跳跃收集奶茶券。",
+      "render_function": "drawMario",
+      "existing_code_ref": "projects/companyverse/index.html line ~565-586",
+      "navigation": {
+        "from": "game_hub",
+        "trigger": "点击街机区水管工门",
+        "transition": "场景切换到平台跳跃关卡"
+      },
+      "game_features": {
+        "core_mechanics": ["平台跳跃", "金币(奶茶券)收集", "敌人躲避", "生命系统"],
+        "current_state": "原型存在，有基础跳跃和碰撞但需要完善",
+        "known_bugs_fixed": ["金币卡死bug", "移动+跳跃冲突"],
+        "remaining_work": ["完整关卡设计", "角色换皮系统", "奶茶券视觉替换", "Boss关卡"]
+      },
+      "interactions": [
+        {"action": "开始游戏", "effect": "进入平台跳跃关卡"},
+        {"action": "选择角色", "effect": "小韩/阿默/小研/小文皮肤切换"},
+        {"action": "查看排行榜", "effect": "奶茶券收集排行榜"}
+      ],
+      "status": "prototype",
+      "notes": "drawMario() 已存在于 index.html，需要在游戏广场添加入口按钮。老板要求交付一版能跳能滚还能救人的水管工。"
+    },
+    "meeting_room": {
+      "id": "meeting_room",
+      "name": "会议室",
+      "category": "map_zone",
+      "owner": "company",
+      "location": "办公室中央区域",
+      "existing_objects": [
+        {"id": "meeting_table", "name": "会议桌", "position": [696.5, 438.1]}
+      ],
+      "required_additions": [
+        "白板(带项目看板)",
+        "投影仪",
+        "会议椅子(4把)",
+        "茶水小推车"
+      ],
+      "interactions": [
+        {"action": "查看会议纪要", "effect": "显示最近的团队讨论摘要"},
+        {"action": "触发团队事件", "effect": "随机激活一个公司日常事件"}
+      ],
+      "notes": "scene_positions 中仅有 meeting_table 物件，缺少完整的会议室场景"
+    }
+  },
+  "integration": {
+    "company_state_json": "world_areas 字段已更新，新增 plumber_impostor 条目",
+    "index_html": "需在导航层添加水管工小游戏入口按钮",
+    "scene_positions": "新区域需补充各自的物件初始坐标",
+    "universe_pipeline": "聊天触发空间机制需接入沉淀管道"
+  }
+}
