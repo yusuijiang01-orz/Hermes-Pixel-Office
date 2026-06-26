@@ -803,10 +803,47 @@ function checkCollision(objId,newX,newY,w,h){
   }
   return null;
 }
-// Persisted positions (loaded from localStorage, saved to server)
+// Persisted positions. Always sanitize before using them so a bad cache cannot
+// push the office layout off-screen or make edit mode look empty.
 let scenePositions={};
-function loadScenePositions(){try{const s=localStorage.getItem('hermes-scene-positions');if(s){scenePositions=JSON.parse(s)}}catch(e){}fetch('/api/scene/load').then(r=>r.json()).then(d=>{if(d.ok&&d.scene){scenePositions=d.scene;localStorage.setItem('hermes-scene-positions',JSON.stringify(d.scene))}}).catch(()=>{})}
-function saveScenePositionsToStorage(){try{localStorage.setItem('hermes-scene-positions',JSON.stringify(scenePositions))}catch(e){}}
+function defaultScenePositions(w=canvas.clientWidth||960,h=canvas.clientHeight||600){
+  const defaults={};
+  for(const obj of SCENE_OBJECTS){
+    const def=obj.getDefault(w,h);
+    defaults[obj.id]={x:def.x,y:def.y};
+  }
+  return defaults;
+}
+function sanitizeScenePositions(input,w=canvas.clientWidth||960,h=canvas.clientHeight||600){
+  const safe=defaultScenePositions(w,h);
+  if(!input||typeof input!=='object')return safe;
+  const known=new Map(SCENE_OBJECTS.map(obj=>[obj.id,obj]));
+  for(const [id,pos] of Object.entries(input)){
+    const obj=known.get(id);
+    if(!obj||!pos)continue;
+    const x=Number(pos.x),y=Number(pos.y);
+    if(!Number.isFinite(x)||!Number.isFinite(y))continue;
+    const maxX=Math.max(0,w-obj.w),maxY=Math.max(0,h-obj.h);
+    safe[id]={x:Math.min(maxX,Math.max(0,x)),y:Math.min(maxY,Math.max(0,y))};
+  }
+  return safe;
+}
+function setScenePositions(next,{persist=false}={}){
+  scenePositions=sanitizeScenePositions(next);
+  if(persist)saveScenePositionsToStorage();
+}
+function loadScenePositions(){
+  try{
+    const s=localStorage.getItem('hermes-scene-positions');
+    if(s)setScenePositions(JSON.parse(s));
+    else setScenePositions({});
+  }catch(e){setScenePositions({});}
+  fetch('/api/scene/load')
+    .then(r=>r.ok?r.json():null)
+    .then(d=>{if(d&&d.ok&&d.scene)setScenePositions(d.scene,{persist:true})})
+    .catch(()=>{});
+}
+function saveScenePositionsToStorage(){try{localStorage.setItem('hermes-scene-positions',JSON.stringify(sanitizeScenePositions(scenePositions)))}catch(e){}}
 loadScenePositions();
 
 function getSceneObjBounds(obj,w,h){
