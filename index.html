@@ -321,6 +321,15 @@ const seenFeedKeys=new Set(),feedQueue=[];
 const mobileState={tab:'messages',messageFilter:'all',contactKind:'friends',chatOpen:false,chatMode:'private',agent:null,conversation:'team'};
 const scrollState={desktop:{key:'',stick:true,top:0},mobile:{key:'',stick:true,top:0}};
 const mentionState={desktop:{query:'',start:-1,end:-1},mobile:{query:'',start:-1,end:-1}};
+function esc(value){
+  return String(value??'').replace(/[&<>"']/g,ch=>({
+    '&':'&amp;',
+    '<':'&lt;',
+    '>':'&gt;',
+    '"':'&quot;',
+    "'":'&#39;'
+  }[ch]))
+}
 const officeView={x:0,y:0,scale:1,min:.72,max:1.85,pan:false,lastX:0,lastY:0,pinch:false,pinchDist:0,pinchScale:1,pinchMid:{x:0,y:0}};
 const fallbackMentions=[
   {id:'default',short:'阿默',name:'制作人 阿默',role:'主程 / 制作人'},
@@ -329,7 +338,7 @@ const fallbackMentions=[
   {id:'writer',short:'小文',name:'文案 小文',role:'叙事与文案'}
 ];
 let pendingMessages=[],refreshTimer=0,fastRefreshUntil=0,realtimeSource=null,realtimeConnected=false,realtimeRetryTimer=0;
-let _lastRenderVersion=0,_prevPrivateHash='',_prevGroupHash='';
+let _lastRenderVersion=0,_prevPrivateHash='',_prevGroupHash='',_renderedChatMode='';
 const attachmentDrafts={desktop:[],mobile:[]};
 let stickerStore=[];
 try{stickerStore=JSON.parse(localStorage.getItem('hermes-stickers')||'[]')}catch{stickerStore=[]}
@@ -455,13 +464,11 @@ function milkFoamer(x,y,t){
   for(let i=0;i<3;i++)px(x+7+i*6,y+6-Math.sin(t/260+i)*3,4,4,'#fff7df')
 }
 function microwave(x,y,t){
-  // DEBUG: 红色十字标记微波炉位置
-  ctx.fillStyle='rgba(255,0,0,0.6)';ctx.fillRect(x+12,y+4,8,28);
-  ctx.fillStyle='#ff0000';ctx.font='bold 10px monospace';ctx.fillText('MICROWAVE',x-2,y-4);
   px(x,y,32,36,'#2c2c2c');px(x+3,y+4,26,18,'#1a1a1a');px(x+7,y+9,18,10,'#3a3a3a');
   for(let i=0;i<4;i++){px(x+6+i*6,y+2,4,3,'#8c8c8c')}
   if(Math.floor(t/300)%2){px(x+27,y+5,3,3,'#00cc00')}else{px(x+27,y+5,3,3,'#cc0000')}
   if(Math.floor(t/600)%2){const glow=Math.floor(t/60)%3;for(let i=0;i<2;i++){px(x+8+i*6,y+10+glow,4,4,'#ffdd6644')}}
+  ctx.fillStyle='#5b4d40';ctx.font='9px Microsoft YaHei';ctx.fillText('微波炉',x-1,y+48)
 }
 function breakBar(x,y,w,bh,t){
   px(x,y,w,bh,'#efeadb');px(x,y,w,8,'#b57f4e');px(x+6,y+12,w-14,bh-24,'#d9c6a5');
@@ -469,8 +476,6 @@ function breakBar(x,y,w,bh,t){
   coffeeMachine(Math.min(x+12,maxMW-100),y+20,t);
   iceMachine(Math.min(x+62,maxMW-50),y+16,t);
   milkFoamer(Math.min(x+116,maxMW-84),y+20,t);
-  const mwX=Math.min(x+152, maxMW-32);
-  microwave(mwX,y+20,t);
   px(x+14,y+bh-16,w-20,5,'#9f744d');ctx.fillStyle='#5b4d40';ctx.font='10px Microsoft YaHei';ctx.fillText('水吧 · 咖啡 · 奶泡',x+39,y+bh-4)
 }
 function breakBarScaled(x,y,t,scale=1){
@@ -787,10 +792,10 @@ const SCENE_OBJECTS=[
     desk(x,y,'writer')
   }},
   {id:'breakbar',name:'水吧',desc:'咖啡机、制冰机、打奶泡设备——老板说这是公司的门面',w:178,h:88,getDefault:(w,h)=>{return{x:w*.785,y:h*.495}},collides:true,draw:(x,y)=>{
-    px(x,y,178,88,'#efeadb');px(x,y,178,8,'#b57f4e');px(x+6,y+12,166,66,'#d9c6a5');
-    px(x+12,y+20,36,46,'#303a3a');px(x+17,y+25,26,18,'#566d68');px(x+62,y+16,38,52,'#e9eee9');px(x+68,y+23,26,20,'#6f9290');
-    px(x+116,y+20,30,44,'#d9d2c1');px(x+122,y+28,18,24,'#f5f2e8');
-    ctx.fillStyle='#5b4d40';ctx.font='10px Microsoft YaHei';ctx.fillText('水吧',x+74,y+86)
+    breakBar(x,y,178,88,performance.now())
+  }},
+  {id:'microwave',name:'微波炉',desc:'水吧角落的小微波炉，员工热饭和吐司都靠它',w:32,h:36,getDefault:(w,h)=>{const p=SCENE_OBJECTS.find(o=>o.id==='breakbar')?.getDefault(w,h)||{x:w*.785,y:h*.495};return{x:p.x+128,y:p.y+20}},collides:false,draw:(x,y,t)=>{
+    microwave(x,y,t||performance.now())
   }},
   {id:'meeting_table',name:'会议桌',desc:'每次站在这里讨论都觉得自己在演职场剧',w:170,h:100,getDefault:(w,h)=>{return{x:w*.455,y:h*.535}},collides:true,draw:(x,y)=>{
     px(x,y,170,100,'#4c6c6a');px(x+5,y+5,160,90,'#85aaa5');
@@ -805,8 +810,8 @@ const SCENE_OBJECTS=[
     px(x+4,y+36,40,10,'#8b6b4a');px(x+4,y+52,40,10,'#8b6b4a');
     for(let shelf=0;shelf<4;shelf++){
       const sy=y+6+shelf*16;
-      for(let b=0;b<5;b++){const bw=6+Math.floor(Math.random()*6),bh=10+Math.floor(Math.random()*4);
-      px(x+6+b*8,sy+bh-bh,6,bh,['#c46f62','#718c77','#d4ad67','#8b6b8a','#6b8b8b'][(b+shelf)%5])}
+      for(let b=0;b<5;b++){const bh=10+((b*3+shelf*5)%4);
+      px(x+6+b*8,sy+10-bh,6,bh,['#c46f62','#718c77','#d4ad67','#8b6b8a','#6b8b8b'][(b+shelf)%5])}
     }
   }},
   {id:'plant',name:'盆栽',desc:'不知道谁养的，反正活着',w:24,h:32,getDefault:(w,h)=>{return{x:w*.92,y:h*.82}},collides:true,draw:(x,y)=>{
@@ -885,6 +890,52 @@ function drawSceneObject(obj,w,h,t){
 }
 function drawSceneObjects(w,h,t){
   for(const obj of SCENE_OBJECTS)drawSceneObject(obj,w,h,t);
+}
+
+function sceneObjectSnapshot(w=canvas.clientWidth||960,h=canvas.clientHeight||600){
+  const office={};
+  for(const obj of SCENE_OBJECTS){
+    const b=getSceneObjBounds(obj,w,h);
+    office[obj.id]={
+      id:obj.id,name:obj.name,scene:'office',x:Math.round(b.x),y:Math.round(b.y),w:obj.w,h:obj.h,
+      cx:Math.round(b.x+obj.w/2),cy:Math.round(b.y+obj.h/2),
+      category:obj.id.startsWith('desk_')?'desk':obj.id==='corgi'?'pet':obj.id==='aquarium'?'aquarium':obj.id==='breakbar'||obj.id==='coffee_machine'||obj.id==='microwave'?'facility':'object',
+      owner:({desk_default:'阿默',desk_planner:'小韩',desk_researcher:'小研',desk_writer:'小文',corgi:'小文'}[obj.id]||'company'),
+      interactable:true,dynamic:obj.id==='corgi'||obj.id==='aquarium'||obj.id==='breakbar',
+      affordances:({
+        aquarium:['observe','feed_fish','corgi_watch'],
+        corgi:['pet','follow_writer','play'],
+        breakbar:['drink_water','make_coffee','ice','milk_foam'],
+        coffee_machine:['make_coffee'],
+        microwave:['heat_food','toast'],
+        meeting_table:['meeting'],
+      }[obj.id]||['inspect'])
+    };
+  }
+  Object.values(agents).forEach(a=>{
+    if(!a||a.hidden)return;
+    office[`employee_${a.id}`]={
+      id:`employee_${a.id}`,name:a.name||a.id,scene:'office',x:Math.round((a.x||0)-18),y:Math.round((a.y||0)-48),w:36,h:64,
+      cx:Math.round(a.x||0),cy:Math.round((a.y||0)-16),category:'employee',owner:a.id,interactable:true,dynamic:true,
+      affordances:['chat','assign_task','observe_status']
+    };
+  });
+  return {office};
+}
+
+let lastWorldReport=0,lastWorldReportHash='';
+function reportWorldObjects(t,w,h){
+  if(t-lastWorldReport<3500)return;
+  lastWorldReport=t;
+  const world_objects=sceneObjectSnapshot(w,h);
+  const hash=JSON.stringify(world_objects);
+  if(hash===lastWorldReportHash)return;
+  lastWorldReportHash=hash;
+  fetch('/api/world/report',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({world_objects})
+  }).catch(()=>{});
 }
 
 function drawSelectionBox(w,h,t){
@@ -1445,7 +1496,7 @@ function updateRoomUI(){
 function frame(t){const dt=Math.min((t-lastFrame)/1000||0,.1);lastFrame=t;const w=canvas.clientWidth,h=canvas.clientHeight;ctx.clearRect(0,0,w,h);const everyoneHome=state?.world?.phase==='home'&&Object.values(agents).every(a=>['home','home_remote'].includes(a.presence));neighborhood=cameraMode==='home'||(cameraMode==='auto'&&everyoneHome);document.querySelector('#homeSwitcher').classList.toggle('visible',neighborhood);if(currentRoom==='office'&&!editMode)document.querySelector('#sceneTip').textContent=neighborhood?'切换住宅查看员工，下方可直接私聊':'点击员工聊天，点工位看他忙啥';// Room navigation
   if(currentRoom==='game'){drawGameRoom(w,h,t);ctx.textAlign='center';ctx.fillStyle='#8a9a9a';ctx.font='12px Microsoft YaHei';ctx.fillText('左上角返回办公室 · 右上角回消息首页',w/2,h*.68);ctx.textAlign='left'}
   else if(currentRoom==='boss'){drawBossOffice(w,h,t);ctx.textAlign='center';ctx.fillStyle='#8a9a9a';ctx.font='12px Microsoft YaHei';ctx.fillText('左上角返回办公室 · 右上角回消息首页',w/2,h*.68);ctx.textAlign='left'}
-  else{if(neighborhood)drawHomeInterior(w,h,t);else room(w,h,t)}if(editMode)drawSelectionBox(w,h,t);if(t>nextFeed&&feedQueue.length){const item=feedQueue.shift(),speaker=agents[item.agent];if(speaker)speaker.speech={text:item.text,until:t+6500};nextFeed=t+5200}Object.values(agents).forEach((a,i)=>{initNeeds(a,i);updateNeeds(a,dt);const p=target(a,w,h,t),dx=p[0]-a.x,dy=p[1]-a.y,d=Math.hypot(dx,dy);a.moving=d>3;if(a.moving&&!neighborhood){const speed=.55;a.x+=dx/d*speed;a.y+=dy/d*speed}if(!a.hidden&&!neighborhood)drawAgent(a,t)});if(!neighborhood){drawAtmosphere(w,h,t);Object.values(agents).forEach(a=>{if(!a.hidden)drawSpeech(a,t,w)})}if(t-lastSave>10000){const out={};Object.values(agents).forEach(a=>out[a.id]=a.needs);localStorage.setItem('hermes-villa-needs',JSON.stringify(out));lastSave=t}if(chatMode==='private'&&selected&&t-lastPanel>1000){updatePanel(agents[selected]);lastPanel=t}requestAnimationFrame(frame)}requestAnimationFrame(frame);
+  else{if(neighborhood)drawHomeInterior(w,h,t);else room(w,h,t)}if(editMode)drawSelectionBox(w,h,t);if(t>nextFeed&&feedQueue.length){const item=feedQueue.shift(),speaker=agents[item.agent];if(speaker)speaker.speech={text:item.text,until:t+6500};nextFeed=t+5200}Object.values(agents).forEach((a,i)=>{initNeeds(a,i);updateNeeds(a,dt);const p=target(a,w,h,t),dx=p[0]-a.x,dy=p[1]-a.y,d=Math.hypot(dx,dy);a.moving=d>3;if(a.moving&&!neighborhood){const speed=.55;a.x+=dx/d*speed;a.y+=dy/d*speed}if(!a.hidden&&!neighborhood)drawAgent(a,t)});if(!neighborhood){drawAtmosphere(w,h,t);Object.values(agents).forEach(a=>{if(!a.hidden)drawSpeech(a,t,w)})}if(t-lastSave>10000){const out={};Object.values(agents).forEach(a=>out[a.id]=a.needs);localStorage.setItem('hermes-villa-needs',JSON.stringify(out));lastSave=t}if(chatMode==='private'&&selected&&t-lastPanel>1000){updatePanel(agents[selected]);lastPanel=t}if(currentRoom==='office'&&!neighborhood)reportWorldObjects(t,w,h);requestAnimationFrame(frame)}requestAnimationFrame(frame);
 function activityText(a){if(a.presence==='home'||a.presence==='home_remote')return activityLabel(homeActivity(a));if(a.presence==='overtime')return'申请加班中';if(a.presence==='lunch')return'午休';return({working:'专注办公',deskIdle:'工位待命',blocked:'遇到阻塞',meeting:'正在讨论',phone:'看手机放松',orderFood:'正在点外卖',pickupFood:'去取外卖',eat:'正在用餐',water:'去喝水',tea:'去拿奶茶',pickupTea:'取奶茶',rest:'休息恢复',restroom:'去洗手间',walk:'返回工位'})[a.mode]||'工位待命'}
 function updatePanel(a){if(!a)return;document.querySelector('#agentStatus').textContent=activityText(a);document.querySelector('#agentSocial').textContent=a.social_summary||'暂无';document.querySelector('#agentRelationship').textContent=a.relationship_summary?`关系网 · ${a.relationship_summary}`:'';const vals=[a.needs?.fatigue,a.needs?.hunger,a.needs?.thirst,a.needs?.mood],nodes=document.querySelectorAll('.need');nodes.forEach((node,i)=>{const val=Math.round(vals[i]??0),risk=i===3?val<35:val>70;node.classList.toggle('bad',risk);node.querySelector('i').style.width=val+'%';node.querySelector('b').textContent=val})}
 function select(id,openSheet=true){selected=id;const a=agents[id];if(!a)return;if(chatMode==='private'){document.querySelector('#agentName').textContent=a.name;document.querySelector('#agentRole').textContent=a.role;document.querySelector('#agentTask').textContent=a.task;updatePanel(a)}document.querySelector('#message').disabled=false;document.querySelector('#send').disabled=false;if(openSheet&&innerWidth<=700)document.querySelector('aside').classList.remove('collapsed');renderChat()}
@@ -1669,12 +1720,11 @@ function renderMobileChatScreen(){
     items.forEach(m=>{
       let wrapper=body.querySelector(`.msg-wrapper[data-msg-id="${m.id}"]`);
       if(!wrapper){wrapper=document.createElement('div');wrapper.className='msg-wrapper';wrapper.dataset.msgId=m.id;body.appendChild(wrapper)}
-      const mine=m.agent===selected;
-      if(mine){
-        wrapper.innerHTML=`<div class="bubble mine">${messageTextHtml(m.prompt,m.attachments)}<span class="bubble-time">${msgTime(m.created)}</span></div>`;
-      }else{
-        wrapper.innerHTML=`<div class="bubble theirs ${m.reply?'':'pending'}"><span class="bubble-name">${esc(agent.short||agent.name||'员工')}</span>${esc(compactText(m.reply||'正在处理并组织回复...',400))}</div>`;
-      }
+      const reply=cleanSpeechText(m.reply||'');
+      wrapper.innerHTML=[
+        m.prompt?`<div class="bubble mine">${messageTextHtml(m.prompt,m.attachments)}<span class="bubble-time">${msgTime(m.created)}</span></div>`:'',
+        `<div class="bubble theirs ${reply?'':'pending'}"><span class="bubble-name">${esc(agent.short||agent.name||'员工')}<span class="bubble-time">${msgTime(m.completed||m.created)}</span></span>${esc(reply?compactText(reply,400):(m.status==='blocked'?'遇到问题，正在整理需要你决定的事项...':'正在处理并组织回复...'))}</div>`
+      ].join('');
     });
     return
   }
@@ -1900,9 +1950,10 @@ function renderChat(){
   const dataHash=JSON.stringify(all.map(m=>[m.id,m.prompt,m.reply,m.status,m.mode,m.conversation,m.agent]));
   if(chatMode==='private'){
     const hash=`private:${selected||'none'}:${dataHash}`;
-    if(hash===_prevPrivateHash&&_lastRenderVersion)return;
+    if(hash===_prevPrivateHash&&_lastRenderVersion&&_renderedChatMode==='private')return;
+    if(_renderedChatMode!=='private')box.innerHTML='';
     const items=all.filter(m=>m.mode!=='group'&&m.agent===selected);
-    if(!items.length){box.innerHTML='<div class="empty">还没有私聊。<br>点击员工后可以直接交流。</div>';_prevPrivateHash=hash;_lastRenderVersion++;return}
+    if(!items.length){box.innerHTML='<div class="empty">还没有私聊。<br>点击员工后可以直接交流。</div>';_prevPrivateHash=hash;_renderedChatMode='private';_lastRenderVersion++;return}
     // Incremental: compare by message id
     const existing=new Set([...box.querySelectorAll('.msg-wrapper[data-msg-id]')].map(el=>el.dataset.msgId));
     const wanted=new Set(items.map(m=>String(m.id)));
@@ -1915,21 +1966,21 @@ function renderChat(){
         wrapper=document.createElement('div');wrapper.className='msg-wrapper';wrapper.dataset.msgId=m.id;
         box.appendChild(wrapper);
       }
-      const mine=m.agent===selected;
-      if(mine){
-        wrapper.innerHTML=`<div class="bubble mine">${messageTextHtml(m.prompt,m.attachments)}</div>`;
-      }else{
-        const pendingClass=m.reply?'':'pending';
-        wrapper.innerHTML=`<div class="bubble theirs ${pendingClass}"><span class="bubble-name">${esc(m.name||'员工')}</span>${m.reply?esc(m.reply):m.status==='blocked'?'遇到问题，正在整理需要你决定的事项...':'正在处理并组织回复...'}</div>`;
-      }
+      const reply=cleanSpeechText(m.reply||'');
+      wrapper.innerHTML=[
+        m.prompt?`<div class="bubble mine">${messageTextHtml(m.prompt,m.attachments)}<span class="bubble-time">${msgTime(m.created)}</span></div>`:'',
+        `<div class="bubble theirs ${reply?'':'pending'}"><span class="bubble-name">${esc(m.name||'员工')}<span class="bubble-time">${msgTime(m.completed||m.created)}</span></span>${reply?esc(reply):m.status==='blocked'?'遇到问题，正在整理需要你决定的事项...':'正在处理并组织回复...'}</div>`
+      ].join('');
     });
     _prevPrivateHash=hash;
+    _renderedChatMode='private';
   }else{
     const hash=`group:${dataHash}`;
-    if(hash===_prevGroupHash&&_lastRenderVersion)return;
+    if(hash===_prevGroupHash&&_lastRenderVersion&&_renderedChatMode==='group')return;
+    if(_renderedChatMode!=='group')box.innerHTML='';
     const items=all.filter(m=>m.mode==='group'),groups=new Map;
     items.forEach(m=>{if(!groups.has(m.conversation))groups.set(m.conversation,[]);groups.get(m.conversation).push(m)});
-    if(!groups.size){box.innerHTML='<div class="empty">群里还很安静。<br>发个话题，成员会接话、追问或互相讨论。</div>';_prevGroupHash=hash;_lastRenderVersion++;return}
+    if(!groups.size){box.innerHTML='<div class="empty">群里还很安静。<br>发个话题，成员会接话、追问或互相讨论。</div>';_prevGroupHash=hash;_renderedChatMode='group';_lastRenderVersion++;return}
     // Incremental per-conversation
     const existingConv=new Set([...box.querySelectorAll('.conv-group[data-conv-id]')].map(el=>el.dataset.convId));
     const wantedConv=new Set([...groups.keys()]);
@@ -1968,6 +2019,7 @@ function renderChat(){
       });
     });
     _prevGroupHash=hash;
+    _renderedChatMode='group';
   }
   _lastRenderVersion++;
 }

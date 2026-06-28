@@ -350,6 +350,58 @@ def sanitize_scene_positions(value):
     return cleaned
 
 
+def sanitize_world_objects(value):
+    if not isinstance(value, dict):
+        return {}
+    cleaned = {}
+    for scene, objects in value.items():
+        if not isinstance(scene, str) or not isinstance(objects, dict):
+            continue
+        scene_key = re.sub(r"[^a-zA-Z0-9_-]", "", scene)[:40] or "office"
+        cleaned_scene = {}
+        for obj_id, obj in objects.items():
+            if not isinstance(obj_id, str) or not isinstance(obj, dict):
+                continue
+            clean_id = re.sub(r"[^a-zA-Z0-9_-]", "", obj_id)[:80]
+            if not clean_id:
+                continue
+            try:
+                x = float(obj.get("x", 0))
+                y = float(obj.get("y", 0))
+                w = float(obj.get("w", 0))
+                h = float(obj.get("h", 0))
+            except (TypeError, ValueError):
+                continue
+            if not all(math.isfinite(v) for v in (x, y, w, h)):
+                continue
+            try:
+                cx = float(obj.get("cx", x + w / 2))
+                cy = float(obj.get("cy", y + h / 2))
+            except (TypeError, ValueError):
+                cx = x + w / 2
+                cy = y + h / 2
+            cleaned_scene[clean_id] = {
+                "id": clean_id,
+                "name": str(obj.get("name") or clean_id)[:80],
+                "scene": scene_key,
+                "x": max(-1000, min(6000, x)),
+                "y": max(-1000, min(6000, y)),
+                "w": max(1, min(2000, w)),
+                "h": max(1, min(2000, h)),
+                "cx": max(-1000, min(6000, cx)),
+                "cy": max(-1000, min(6000, cy)),
+                "category": str(obj.get("category") or "object")[:60],
+                "owner": str(obj.get("owner") or "")[:60],
+                "interactable": bool(obj.get("interactable")),
+                "dynamic": bool(obj.get("dynamic")),
+                "affordances": [str(item)[:40] for item in (obj.get("affordances") or [])[:8]] if isinstance(obj.get("affordances"), list) else [],
+                "updated_at": int(time.time()),
+            }
+        if cleaned_scene:
+            cleaned[scene_key] = cleaned_scene
+    return cleaned
+
+
 def company_memory_brief(company_state):
     facts = company_state.get("facts") or []
     assets = company_state.get("assets") or []
@@ -1915,7 +1967,7 @@ class Handler(SimpleHTTPRequestHandler):
         if web_auth_enabled() and not self.web_authorized():
             self.reject_unauthorized()
             return
-        if path.startswith("/api/") and path != "/api/scene/load" and not self.api_authorized():
+        if path.startswith("/api/") and path not in ("/api/scene/load", "/api/world/objects") and not self.api_authorized():
             self.send_json({"error": "API KEY 无效"}, 401)
             return
         if path == "/api/scene/load":
@@ -1923,6 +1975,13 @@ class Handler(SimpleHTTPRequestHandler):
                 cs = load_company_state()
                 scene = sanitize_scene_positions(cs.get("scene_positions", {}))
                 self.send_json({"ok": True, "scene": scene})
+            except Exception as exc:
+                self.send_json({"error": str(exc)}, 500)
+            return
+        if path == "/api/world/objects":
+            try:
+                cs = load_company_state()
+                self.send_json({"ok": True, "world_objects": cs.get("world_objects") or {}})
             except Exception as exc:
                 self.send_json({"error": str(exc)}, 500)
             return
@@ -2015,8 +2074,8 @@ class Handler(SimpleHTTPRequestHandler):
         if web_auth_enabled() and not self.web_authorized():
             self.reject_unauthorized()
             return
-        scene_same_origin = path == "/api/scene/save" and self.same_origin_request()
-        if path.startswith("/api/") and not scene_same_origin and not self.api_authorized():
+        same_origin_write = path in ("/api/scene/save", "/api/world/report") and self.same_origin_request()
+        if path.startswith("/api/") and not same_origin_write and not self.api_authorized():
             self.send_json({"error": "API KEY 无效"}, 401)
             return
         if path == "/api/scene/save":
@@ -2028,6 +2087,22 @@ class Handler(SimpleHTTPRequestHandler):
                 cs["scene_positions"] = scene_positions
                 save_company_state(cs)
                 self.send_json({"ok": True})
+            except Exception as exc:
+                self.send_json({"error": str(exc)}, 500)
+            return
+        if path == "/api/world/report":
+            try:
+                size = int(self.headers.get("Content-Length", 0))
+                payload = json.loads(self.rfile.read(size) or b"{}")
+                world_objects = sanitize_world_objects(payload.get("world_objects", {}))
+                cs = load_company_state()
+                existing = cs.get("world_objects") if isinstance(cs.get("world_objects"), dict) else {}
+                for scene, objects in world_objects.items():
+                    existing[scene] = objects
+                cs["world_objects"] = existing
+                cs["world_objects_updated_at"] = int(time.time())
+                save_company_state(cs)
+                self.send_json({"ok": True, "scenes": list(world_objects)})
             except Exception as exc:
                 self.send_json({"error": str(exc)}, 500)
             return
