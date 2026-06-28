@@ -27,6 +27,12 @@ HERMES = Path(os.environ.get(
 ))
 PORT = int(os.environ.get("PORT", "8777"))
 API_KEY = os.environ.get("HERMES_API_KEY", "").strip()
+WEB_AUTH_USER = os.environ.get("HERMES_WEB_USER", "").strip()
+WEB_AUTH_PASSWORD = os.environ.get("HERMES_WEB_PASSWORD", "").strip()
+WEB_AUTH_SECRET = os.environ.get("HERMES_WEB_SECRET", "").strip() or hashlib.sha256(
+    (WEB_AUTH_USER + "\0" + WEB_AUTH_PASSWORD + "\0" + str(ROOT)).encode("utf-8")
+).hexdigest()
+WEB_AUTH_MAX_AGE = int(os.environ.get("HERMES_WEB_AUTH_MAX_AGE", str(30 * 24 * 3600)))
 FAST_BOARD_SLUG = os.environ.get("HERMES_BOARD", "relicbound-arpg")
 PROFILES = {
     "default": {"name": "制作人 阿默", "short": "阿默", "role": "主程 / 制作人", "personality": "沉稳务实、略带冷幽默；只认真实文件、测试和可交付版本", "chat": "说话短、直接，常拿实际文件或测试戳破空话；熟了会冷幽默，偶尔吐槽老板拍脑袋"},
@@ -968,6 +974,78 @@ def is_diagnostic_chat_task(task):
     return created >= 1782666000 and ("????:??????" in title or "????????????????" in body)
 
 
+def web_auth_enabled():
+    return bool(WEB_AUTH_USER and WEB_AUTH_PASSWORD)
+
+
+def sign_auth_value(payload):
+    return hmac.new(WEB_AUTH_SECRET.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def make_auth_cookie():
+    exp = int(time.time()) + WEB_AUTH_MAX_AGE
+    payload = f"{WEB_AUTH_USER}:{exp}"
+    return f"{payload}:{sign_auth_value(payload)}"
+
+
+def verify_auth_cookie(cookie_header):
+    if not web_auth_enabled():
+        return True
+    cookies = {}
+    for part in str(cookie_header or "").split(";"):
+        if "=" not in part:
+            continue
+        key, value = part.strip().split("=", 1)
+        cookies[key] = value
+    raw = cookies.get("hermes_session", "")
+    parts = raw.split(":")
+    if len(parts) != 3:
+        return False
+    user, exp_text, sig = parts
+    if user != WEB_AUTH_USER or not exp_text.isdigit() or int(exp_text) < int(time.time()):
+        return False
+    payload = f"{user}:{exp_text}"
+    return hmac.compare_digest(sig, sign_auth_value(payload))
+
+
+def login_page(error=""):
+    error_html = f'<div class="error">{error}</div>' if error else ""
+    return f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+  <title>Hermes Pixel Works 登录</title>
+  <style>
+    *{{box-sizing:border-box}}html,body{{margin:0;min-height:100%;background:#10191d;color:#edf5f0;font-family:"Microsoft YaHei",Arial,sans-serif}}
+    body{{display:grid;place-items:center;padding:24px;background:
+      linear-gradient(180deg,#13232a 0,#10191d 44%,#0b1114 100%)}}
+    .card{{width:min(420px,100%);border:4px solid #314046;background:#f7f1df;color:#1a2528;box-shadow:8px 8px 0 #05090b}}
+    .head{{padding:18px 20px;border-bottom:4px solid #314046;background:#17242a;color:#f7f1df}}
+    h1{{margin:0;font-size:22px;letter-spacing:0}}.brand{{color:#f0c85a}}p{{margin:8px 0 0;color:#9eb5b0;font-size:13px}}
+    form{{display:grid;gap:14px;padding:20px}}label{{display:grid;gap:6px;font-weight:900;color:#334148}}
+    input{{height:46px;border:3px solid #5d6b70;background:#fffdf5;color:#172126;padding:0 12px;font-size:17px;outline:none}}
+    input:focus{{border-color:#d8aa39;box-shadow:0 0 0 3px #f0c85a55}}
+    button{{height:48px;border:3px solid #314046;background:#f0c85a;color:#172126;font-weight:900;font-size:17px;box-shadow:4px 4px 0 #a48b3a}}
+    .error{{padding:10px 12px;border:2px solid #b64f45;background:#ffe6de;color:#8f2e25;font-size:13px;font-weight:900}}
+    .hint{{font-size:12px;color:#6a777a;line-height:1.6}}
+  </style>
+</head>
+<body>
+  <section class="card">
+    <div class="head"><h1><span class="brand">HERMES</span> PIXEL WORKS</h1><p>登录后会在本设备保持 30 天。</p></div>
+    <form method="post" action="/login">
+      {error_html}
+      <label>用户名<input name="username" autocomplete="username" value="{WEB_AUTH_USER or 'admin'}"></label>
+      <label>密码<input name="password" type="password" autocomplete="current-password" autofocus></label>
+      <button type="submit">进入像素公司</button>
+      <div class="hint">这是 Hermes 自己的网页登录，不再使用浏览器弹窗 Basic Auth。</div>
+    </form>
+  </section>
+</body>
+</html>"""
+
+
 def internal_topic_for(profile, world):
     phase = "lunch" if world.get("phase") == "lunch" else "work"
     options = AUTO_CHAT_TOPICS.get(phase, {}).get(profile) or AUTO_CHAT_TOPICS["work"]["default"]
@@ -1779,6 +1857,16 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def send_html(self, html, status=200, extra_headers=None):
+        data = html.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        for key, value in (extra_headers or {}).items():
+            self.send_header(key, value)
+        self.end_headers()
+        self.wfile.write(data)
+
     def do_OPTIONS(self):
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -1793,6 +1881,18 @@ class Handler(SimpleHTTPRequestHandler):
         sent = self.headers.get("X-Hermes-Api-Key", "") or query_key
         return hmac.compare_digest(sent, API_KEY)
 
+    def web_authorized(self):
+        return verify_auth_cookie(self.headers.get("Cookie", ""))
+
+    def reject_unauthorized(self):
+        path = urlparse(self.path).path
+        if path.startswith("/api/"):
+            self.send_json({"error": "请先登录 Hermes Pixel Works"}, 401)
+            return
+        self.send_response(302)
+        self.send_header("Location", "/login")
+        self.end_headers()
+
     def same_origin_request(self):
         origin = self.headers.get("Origin", "")
         if not origin:
@@ -1804,6 +1904,17 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = urlparse(self.path).path
+        if path == "/login":
+            if self.web_authorized():
+                self.send_response(302)
+                self.send_header("Location", "/")
+                self.end_headers()
+            else:
+                self.send_html(login_page())
+            return
+        if web_auth_enabled() and not self.web_authorized():
+            self.reject_unauthorized()
+            return
         if path.startswith("/api/") and path != "/api/scene/load" and not self.api_authorized():
             self.send_json({"error": "API KEY 无效"}, 401)
             return
@@ -1882,6 +1993,28 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(self.path).path
+        if path == "/login":
+            try:
+                size = int(self.headers.get("Content-Length", 0))
+                raw = self.rfile.read(size).decode("utf-8", errors="replace")
+                form = parse_qs(raw)
+                username = (form.get("username") or [""])[0]
+                password = (form.get("password") or [""])[0]
+                if hmac.compare_digest(username, WEB_AUTH_USER) and hmac.compare_digest(password, WEB_AUTH_PASSWORD):
+                    secure = "; Secure" if self.headers.get("X-Forwarded-Proto", "") == "https" else ""
+                    cookie = f"hermes_session={make_auth_cookie()}; Max-Age={WEB_AUTH_MAX_AGE}; Path=/; HttpOnly; SameSite=Lax{secure}"
+                    self.send_response(302)
+                    self.send_header("Set-Cookie", cookie)
+                    self.send_header("Location", "/")
+                    self.end_headers()
+                else:
+                    self.send_html(login_page("用户名或密码不对。"), 401)
+            except Exception as exc:
+                self.send_html(login_page(str(exc)), 500)
+            return
+        if web_auth_enabled() and not self.web_authorized():
+            self.reject_unauthorized()
+            return
         scene_same_origin = path == "/api/scene/save" and self.same_origin_request()
         if path.startswith("/api/") and not scene_same_origin and not self.api_authorized():
             self.send_json({"error": "API KEY 无效"}, 401)

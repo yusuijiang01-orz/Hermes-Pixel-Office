@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 runtime_errors.log
 company_state.json
+auth.local.ps1
 
 # Sensitive exported conversations
 docs/user-messages-*.md
