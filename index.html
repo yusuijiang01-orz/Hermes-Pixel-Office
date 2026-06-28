@@ -1897,11 +1897,12 @@ function attachmentPrompt(items=[]){
 }
 function renderChat(){
   const box=document.querySelector('#chat'),all=state?.messages||[];
-  const hash=JSON.stringify(all.map(m=>[m.id,m.prompt,m.reply,m.status,m.mode]));
-  if(hash===_prevGroupHash&&hash===_prevPrivateHash&&!_lastRenderVersion)return;
+  const dataHash=JSON.stringify(all.map(m=>[m.id,m.prompt,m.reply,m.status,m.mode,m.conversation,m.agent]));
   if(chatMode==='private'){
+    const hash=`private:${selected||'none'}:${dataHash}`;
+    if(hash===_prevPrivateHash&&_lastRenderVersion)return;
     const items=all.filter(m=>m.mode!=='group'&&m.agent===selected);
-    if(!items.length){box.innerHTML='<div class="empty">还没有私聊。<br>点击员工后可以直接交流。</div>';_prevPrivateHash=hash;_prevGroupHash=hash;return}
+    if(!items.length){box.innerHTML='<div class="empty">还没有私聊。<br>点击员工后可以直接交流。</div>';_prevPrivateHash=hash;_lastRenderVersion++;return}
     // Incremental: compare by message id
     const existing=new Set([...box.querySelectorAll('.msg-wrapper[data-msg-id]')].map(el=>el.dataset.msgId));
     const wanted=new Set(items.map(m=>String(m.id)));
@@ -1924,9 +1925,11 @@ function renderChat(){
     });
     _prevPrivateHash=hash;
   }else{
+    const hash=`group:${dataHash}`;
+    if(hash===_prevGroupHash&&_lastRenderVersion)return;
     const items=all.filter(m=>m.mode==='group'),groups=new Map;
     items.forEach(m=>{if(!groups.has(m.conversation))groups.set(m.conversation,[]);groups.get(m.conversation).push(m)});
-    if(!groups.size){box.innerHTML='<div class="empty">群里还很安静。<br>发个话题，成员会接话、追问或互相讨论。</div>';_prevGroupHash=hash;_prevPrivateHash=hash;return}
+    if(!groups.size){box.innerHTML='<div class="empty">群里还很安静。<br>发个话题，成员会接话、追问或互相讨论。</div>';_prevGroupHash=hash;_lastRenderVersion++;return}
     // Incremental per-conversation
     const existingConv=new Set([...box.querySelectorAll('.conv-group[data-conv-id]')].map(el=>el.dataset.convId));
     const wantedConv=new Set([...groups.keys()]);
@@ -1966,7 +1969,6 @@ function renderChat(){
     });
     _prevGroupHash=hash;
   }
-  _prevPrivateHash=_prevPrivateHash||hash;
   _lastRenderVersion++;
 }
 
