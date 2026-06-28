@@ -44,6 +44,12 @@ AUTO_CHAT_LOCK = threading.Lock()
 DIRECT_CHAT_LOCK = threading.Lock()
 DIRECT_CHAT_ACTIVE = set()
 STATE_COND = threading.Condition()
+# Performance caches: prevent redundant subprocess calls and log file reads
+_TASK_REPLY_CACHE = {}  # (board_slug, task_id) -> (reply, timestamp)
+_TASK_REPLY_TTL = 5  # seconds – group chat replies rarely change mid-refresh
+_LOG_CACHE = {}  # task_id -> (reply, timestamp)
+_LOG_CACHE_TTL = 10  # log files don't change while server is running
+_STATE_CACHE_LOCK = threading.Lock()
 
 SCENE_OBJECT_IDS = {
     "monitor",
@@ -955,6 +961,13 @@ def extract_attachments(body):
     return data if isinstance(data, list) else []
 
 
+def is_diagnostic_chat_task(task):
+    title = task.get("title", "") or ""
+    body = task.get("body", "") or ""
+    created = task.get("created_at") or 0
+    return created >= 1782666000 and ("????:??????" in title or "????????????????" in body)
+
+
 def internal_topic_for(profile, world):
     phase = "lunch" if world.get("phase") == "lunch" else "work"
     options = AUTO_CHAT_TOPICS.get(phase, {}).get(profile) or AUTO_CHAT_TOPICS["work"]["default"]
@@ -1175,11 +1188,25 @@ def extract_chat_lines(reply):
     return lines[:4]
 
 
-def get_task_reply(board_slug, task):
+def _cached_task_reply(board_slug, task_id):
+    """Cached wrapper around get_task_reply to avoid repeated subprocess calls."""
+    now = time.time()
+    with _STATE_CACHE_LOCK:
+        entry = _TASK_REPLY_CACHE.get((board_slug, task_id))
+        if entry and (now - entry[1]) < _TASK_REPLY_TTL:
+            return entry[0]
+    result = _raw_task_reply(board_slug, task_id)
+    with _STATE_CACHE_LOCK:
+        _TASK_REPLY_CACHE[(board_slug, task_id)] = (result, now)
+    return result
+
+
+def _raw_task_reply(board_slug, task):
+    """Original get_task_reply logic, extracted for caching."""
     if task.get("status") not in ("done", "blocked", "archived"):
         return None
     reply = task.get("result")
-    log_reply = recover_log_reply(board_slug, task["id"])
+    log_reply = _cached_recover_log_reply(board_slug, task["id"])
     if log_reply and (not reply or "[CHAT]" in log_reply):
         reply = log_reply
     title = task.get("title", "")
@@ -1190,10 +1217,14 @@ def get_task_reply(board_slug, task):
             reply = (detail.get("task") or {}).get("result") or reply or detail.get("latest_summary")
         except Exception:
             pass
-    reply = reply or recover_log_reply(board_slug, task["id"])
+    reply = reply or _cached_recover_log_reply(board_slug, task["id"])
     if is_error_reply(reply):
         return None
     return reply
+
+
+# Public alias for backward compatibility
+get_task_reply = _cached_task_reply
 
 
 def fast_state():
@@ -1248,9 +1279,9 @@ def fast_state():
         })
     messages, team_feed = [], []
     chat_tasks = sorted(
-        [task for task in tasks if task.get("title", "").startswith(("[老板消息]", "[老板私聊]", "[老板群聊:", "[内部群聊:"))],
+        [task for task in tasks if task.get("title", "").startswith(("[老板消息]", "[老板私聊]", "[老板群聊:", "[内部群聊:")) and not is_diagnostic_chat_task(task)],
         key=lambda task: task.get("created_at") or 0,
-    )[-36:]
+    )[-180:]
     for task in chat_tasks:
         title, body = task.get("title", ""), task.get("body", "")
         group_match = GROUP_RE.match(title)
@@ -1594,9 +1625,9 @@ def get_state():
 
     messages = []
     chat_tasks = sorted(
-        [t for t in tasks if t.get("title", "").startswith(("[老板消息]", "[老板私聊]", "[老板群聊:", "[内部群聊:"))],
+        [t for t in tasks if t.get("title", "").startswith(("[老板消息]", "[老板私聊]", "[老板群聊:", "[内部群聊:")) and not is_diagnostic_chat_task(t)],
         key=lambda task: task.get("created_at") or 0,
-    )[-36:]
+    )[-180:]
     for task in chat_tasks:
         title = task.get("title", "")
         body = task.get("body", "")
