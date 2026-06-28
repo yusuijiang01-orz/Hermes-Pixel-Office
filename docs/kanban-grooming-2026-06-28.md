@@ -21,6 +21,9 @@
 - Deleted repetitive task_runs: 547479
 - Deleted task_events linked to removed runs: 1642041
 - Deleted extra lifecycle spam events: 820976
+- Marked orphan running/scheduled task_runs as stale: 22
+
+Note: after cleanup, the live dispatcher immediately claimed 3 real chat-related tasks. Those are legitimate active `running` tasks because they are referenced by `tasks.current_run_id`, unlike the old stale run/event pile.
 
 ## Counts
 
