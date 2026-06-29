@@ -918,6 +918,57 @@ def is_project_execution_request(message):
     return False
 
 
+def has_project_context(text):
+    raw = re.sub(r"\s+", " ", str(text or "")).strip()
+    if not raw:
+        return False
+    project_words = (
+        "项目", "像素公司", "游戏公司", "Hermes", "Relicbound", "ARPG", "页面", "插件", "UI",
+        "场景", "编辑模式", "拖拽", "文件", "小游戏", "游戏", "demo", "Demo", "马里奥",
+        "超级马里奥", "Mario", "平台跳跃", "横版", "关卡", "项目地址", "链接", "代码",
+        "报错", "bug", "性能", "卡顿", "渲染", "聊天", "群聊", "消息", "输入", "滚动",
+        "坐标", "部署", "上线", "缓存", "VPS", "手机端", "移动端",
+    )
+    return any(word in raw for word in project_words)
+
+
+def is_followup_confirmation_message(text):
+    raw = re.sub(r"\s+", " ", str(text or "")).strip()
+    if not raw:
+        return False
+    patterns = (
+        r"确定.+了吗",
+        r"刷新一下看看",
+        r"我刷新一下看看",
+        r"没有新bug了",
+        r"卡不卡",
+        r"每次回复大概要多少秒",
+        r"加进来了吗",
+    )
+    return any(re.search(pattern, raw, flags=re.I) for pattern in patterns)
+
+
+def commitment_patterns():
+    return (
+        r"(我来|我去|我负责|我先|我立马|我马上|我立刻|马上去|立刻去|明天我|今晚我).{0,40}(做|改|加|写|画|补|建|发|交付|处理|修|查|看|排)",
+        r"(给你|发你|发给老板|项目地址).{0,40}(项目|地址|链接|demo|Demo|版本)?",
+        r"(可以做|能做|先做|先出|先搞).{0,40}(demo|Demo|版本|关卡|项目|功能)",
+    )
+
+
+def latest_commitment_line(transcript):
+    short_to_profile = {info["short"]: profile for profile, info in PROFILES.items()}
+    for raw_line in reversed(str(transcript or "").splitlines()):
+        if "：" not in raw_line:
+            continue
+        speaker, line = raw_line.split("：", 1)
+        profile = short_to_profile.get(speaker.strip())
+        text = line.strip()
+        if profile and any(re.search(pattern, text, flags=re.I) for pattern in commitment_patterns()):
+            return profile, text
+    return None, ""
+
+
 def project_task_exists(tasks, message, group_id=None):
     short = re.sub(r"\s+", " ", str(message or "")).strip()[:36]
     for task in tasks or []:
@@ -933,33 +984,32 @@ def project_task_exists(tasks, message, group_id=None):
 
 
 def commitment_execution_topic(owner_message, transcript):
-    text = f"{owner_message}\n{transcript}"
-    if not is_project_execution_request(owner_message) and not any(word in text for word in ("我来", "我去", "我负责", "我先", "我立马", "马上去", "立刻去", "明天我", "今晚我", "给你", "发你", "项目地址", "demo", "Demo", "版本", "动工", "开工")):
+    owner_text = re.sub(r"\s+", " ", str(owner_message or "")).strip()
+    owner_is_project = is_project_execution_request(owner_message)
+    profile, commitment_line = latest_commitment_line(transcript)
+    if not owner_is_project and not commitment_line:
         return None
-    commitment_patterns = (
-        r"(我来|我去|我负责|我先|我立马|我马上|我立刻|马上去|立刻去|明天我|今晚我).{0,40}(做|改|加|写|画|补|建|发|交付)",
-        r"(给你|发你|发给老板|项目地址).{0,40}(项目|地址|链接|demo|Demo|版本)?",
-        r"(可以做|能做|先做|先出|先搞).{0,40}(demo|Demo|版本|关卡|项目|功能)",
-    )
-    if any(re.search(pattern, text, flags=re.I) for pattern in commitment_patterns):
+    if not owner_is_project:
+        if is_followup_confirmation_message(owner_text):
+            return None
+        context_text = f"{owner_text}\n{commitment_line}".strip()
+        if not has_project_context(owner_text):
+            return None
+        if len(owner_text) < 8 and not has_project_context(commitment_line):
+            return None
+        if not has_project_context(context_text):
+            return None
+        if any(marker in owner_text for marker in ("哈哈", "笑死", "离谱", "搞笑", "牛", "行吧")) and not has_project_context(commitment_line):
+            return None
+    if owner_is_project or commitment_line:
         return f"{owner_message}\n\n群聊中已出现执行承诺或交付请求，不能继续停留在讨论：\n{transcript[-1200:]}"
     return None
 
 
 def commitment_execution_assignee(transcript):
-    commitment_patterns = (
-        r"(我来|我去|我负责|我先|我立马|我马上|我立刻|马上去|立刻去|明天我|今晚我).{0,40}(做|改|加|写|画|补|建|发|交付)",
-        r"(给你|发你|发给老板|项目地址).{0,40}(项目|地址|链接|demo|Demo|版本)?",
-        r"(可以做|能做|先做|先出|先搞).{0,40}(demo|Demo|版本|关卡|项目|功能)",
-    )
-    short_to_profile = {info["short"]: profile for profile, info in PROFILES.items()}
-    for raw_line in reversed(str(transcript or "").splitlines()):
-        if "：" not in raw_line:
-            continue
-        speaker, line = raw_line.split("：", 1)
-        profile = short_to_profile.get(speaker.strip())
-        if profile and any(re.search(pattern, line, flags=re.I) for pattern in commitment_patterns):
-            return profile
+    profile, _ = latest_commitment_line(transcript)
+    if profile:
+        return profile
     return "default"
 
 
