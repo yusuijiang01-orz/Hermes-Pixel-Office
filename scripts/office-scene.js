@@ -139,6 +139,8 @@ function setChatMode(mode) {
   document.querySelectorAll(".chat-modes button").forEach((b) => b.classList.toggle("active", b.dataset.mode === mode));
   const input = document.querySelector("#message");
   if (mode === "group") {
+    scrollState.desktop.key = "";
+    scrollState.desktop.stick = true;
     document.querySelector("#agentName").textContent = "全员群聊";
     document.querySelector("#agentRole").textContent = "阿默 · 小韩 · 小研 · 小文";
     document.querySelector("#agentStatus").textContent = "团队频道";
