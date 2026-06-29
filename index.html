@@ -421,13 +421,28 @@ const OFFICE_CORGI_ANIMS={
   sleep:['sleep_0','sleep_1','sleep_2','sleep_3','sleep_4','sleep_5','sleep_6','sleep_7']
 };
 Object.values(OFFICE_CORGI_ANIMS).flat().forEach(id=>{const img=new Image();img.src=`/projects/companyverse/assets/corgi/${id}.png?v=office-corgi-2`;officeCorgiFrames[id]=img});
-const officeCorgiState={state:'idle',dir:1,lastX:null,stepPhase:0,lastT:0};
+const officeCorgiState={state:'idle',dir:1,lastX:null,stepPhase:0,lastT:0,nextChange:0,stateStarted:0};
 function px(x,y,w,h,c){ctx.fillStyle=c;ctx.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h))}
 function drawOfficeCorgi(x,y,t=0,scale=.30,label=true){
   const dx=officeCorgiState.lastX==null?0:x-officeCorgiState.lastX;
   const moving=Math.abs(dx)>.15,hour=new Date().getHours();
-  let state=(hour>=23||hour<7)?'sleep':moving?'walk':'idle';
-  if(!moving&&Math.sin(t/2400)>.82)state='bark';
+  let state=officeCorgiState.state||'idle';
+  if(hour>=23||hour<7){
+    state='sleep';
+    officeCorgiState.nextChange=t+12000;
+  }else if(moving){
+    state='walk';
+    officeCorgiState.nextChange=t+2200;
+  }else if(t>(officeCorgiState.nextChange||0)){
+    const mood=Math.abs(Math.sin(t/7300+x*.013+y*.017));
+    state=mood>.90?'bark':mood>.64?'idle':'sleep';
+    officeCorgiState.nextChange=t+(state==='bark'?1400:state==='sleep'?16000:9000);
+    officeCorgiState.stateStarted=t;
+  }
+  if(state==='bark'&&t-(officeCorgiState.stateStarted||t)>1500){
+    state='idle';
+    officeCorgiState.nextChange=t+9000;
+  }
   if(moving)officeCorgiState.dir=dx<0?-1:1;
   const dt=Math.min(64,Math.max(0,t-(officeCorgiState.lastT||t)));
   if(moving)officeCorgiState.stepPhase=(officeCorgiState.stepPhase+Math.abs(dx)*.72+dt*.02)%64;
@@ -774,10 +789,7 @@ const SCENE_OBJECTS=[
     px(x+38,y+10,18,12,'#d4b888');px(x+2,y+28,6,4,'#6b4b2a');px(x+56,y+28,6,4,'#6b4b2a')
   }},
   {id:'aquarium',name:'鱼缸',desc:'锦鲤翻白眼是它唯一的表情',w:200,h:74,getDefault:(w,h)=>{return{x:w*.735,y:h*.665}},collides:true,draw:(x,y)=>{
-    const aw=200,ah=74;
-    px(x-4,y+ah-10,aw+8,14,'#596258');px(x,y,aw,ah,'#5aa6a5');px(x+4,y+4,aw-8,ah-8,'#82c6c0aa');
-    for(let i=0;i<4;i++)px(x+10+i*48,y+ah-16,10,12,'#5e8d68');
-    px(x+30,y+20,12,6,'#f0a24f');px(x+80,y+30,10,5,'#e45f42');px(x+130,y+18,14,7,'#f0a24f')
+    aquarium(x,y,200,74,performance.now())
   }},
   {id:'desk_default',name:'阿默工位',desc:'键盘缝里藏着三种颜色的键帽',w:150,h:62,getDefault:(w,h)=>{return{x:w*.15-20,y:h*.34-12}},collides:true,draw:(x,y)=>{
     desk(x,y,'default')
@@ -1501,7 +1513,7 @@ function activityText(a){if(a.presence==='home'||a.presence==='home_remote')retu
 function updatePanel(a){if(!a)return;document.querySelector('#agentStatus').textContent=activityText(a);document.querySelector('#agentSocial').textContent=a.social_summary||'暂无';document.querySelector('#agentRelationship').textContent=a.relationship_summary?`关系网 · ${a.relationship_summary}`:'';const vals=[a.needs?.fatigue,a.needs?.hunger,a.needs?.thirst,a.needs?.mood],nodes=document.querySelectorAll('.need');nodes.forEach((node,i)=>{const val=Math.round(vals[i]??0),risk=i===3?val<35:val>70;node.classList.toggle('bad',risk);node.querySelector('i').style.width=val+'%';node.querySelector('b').textContent=val})}
 function select(id,openSheet=true){selected=id;const a=agents[id];if(!a)return;if(chatMode==='private'){document.querySelector('#agentName').textContent=a.name;document.querySelector('#agentRole').textContent=a.role;document.querySelector('#agentTask').textContent=a.task;updatePanel(a)}document.querySelector('#message').disabled=false;document.querySelector('#send').disabled=false;if(openSheet&&innerWidth<=700)document.querySelector('aside').classList.remove('collapsed');renderChat()}
 function setChatMode(mode){chatMode=mode;const panel=document.querySelector('aside');panel.classList.toggle('group-mode',mode==='group');document.querySelectorAll('.chat-modes button').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));const input=document.querySelector('#message');if(mode==='group'){document.querySelector('#agentName').textContent='全员群聊';document.querySelector('#agentRole').textContent='阿默 · 小韩 · 小研 · 小文';document.querySelector('#agentStatus').textContent='团队频道';document.querySelector('#agentTask').textContent=state?.board?.name||'当前项目';input.placeholder='向全组发起讨论...';input.disabled=false;document.querySelector('#send').disabled=false}else{input.placeholder='给这位员工留言...';closeMentionMenu('desktop');if(selected)select(selected,false)}renderChat()}
-canvas.addEventListener('click',e=>{if(editMode){e.preventDefault();return}const p=canvasPointFromClient(e.clientX,e.clientY),x=p.x,y=p.y;let hit=null,best=65;Object.values(agents).forEach(a=>{const d=Math.hypot(x-a.x,y-a.y);if(d<best){best=d;hit=a.id}});if(hit){if(isMobileView()&&document.body.classList.contains('show-office')){toggleOffice(false);openMobileChatPrivate(hit);return}setChatMode('private');select(hit)}
+canvas.addEventListener('click',e=>{if(editMode){e.preventDefault();return}const p=canvasPointFromClient(e.clientX,e.clientY),x=p.x,y=p.y;let hit=null,best=65;Object.values(agents).forEach(a=>{const d=Math.hypot(x-a.x,y-a.y);if(d<best){best=d;hit=a.id}});if(hit){if(isMobileView()&&document.body.classList.contains('show-office')){setChatMode('private');select(hit,false);const a=agents[hit];document.querySelector('#sceneTip').textContent=`${a.name.split(' ').slice(-1)[0]} · ${activityText(a)} · ${a.task||'暂无任务'}`;return}setChatMode('private');select(hit)}
   // Room navigation clicks (when in game/boss mode, or in office at restroom)
   if(currentRoom!=='office'){
     // In game room
@@ -1762,7 +1774,7 @@ function renderMobileChatScreen(){
       }else if(m.status==='done'||m.status==='archived'){
         wrapper.remove();
       }else{
-        wrapper.innerHTML=`<div class="bubble theirs pending"><span class="bubble-name">${esc(speaker)}</span>正在输入...</div>`;
+        wrapper.remove();
       }
     });
   });
@@ -2014,7 +2026,7 @@ function renderChat(){
         }else if(m.status==='done'||m.status==='archived'){
           wrapper.remove();
         }else{
-          wrapper.innerHTML=`<div class="bubble theirs pending"><span class="bubble-name">${esc(short)}</span>${m.status==='todo'?'正在看前面的消息...':'正在输入...'}</div>`;
+          wrapper.remove();
         }
       });
     });
@@ -2175,7 +2187,7 @@ document.querySelector('#mobileEditConfirm')?.addEventListener('click',async()=>
   }
 });
 document.querySelector('#mobileFocusGroup')?.addEventListener('click',()=>{mobileState.tab='messages';openMobileChatGroup('team')});
-document.querySelector('#mobileChatBack')?.addEventListener('click',()=>{mobileState.chatOpen=false;renderMobileShell()});
+document.querySelector('#mobileChatBack')?.addEventListener('click',()=>{mobileState.chatOpen=false;mobileState.tab='company';renderMobileShell()});
 document.querySelector('#roomBack')?.addEventListener('click',()=>leaveRoom('button'));
 document.querySelector('#roomHome')?.addEventListener('click',()=>goCompanyHome());
 document.querySelector('#gameInteract')?.addEventListener('click',()=>leaveRoom('button'));
