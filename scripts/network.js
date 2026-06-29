@@ -115,6 +115,7 @@ async function sendChatMessage(inputSelector, mode, agentId) {
   closeMentionMenu(inputSelector === "#mobileChatInput" ? "mobile" : "desktop");
   closeChatPanels();
   input.value = "";
+  if (typeof autoResizeInput === "function") autoResizeInput(input);
   attachmentDrafts[kind] = [];
   renderAttachmentPreview(kind);
   input.disabled = true;

@@ -32,19 +32,20 @@ function frame(t) {
     if (speaker) speaker.speech = { text: item.text, until: t + 6500 };
     nextFeed = t + 5200;
   }
+  const officeSceneActive = currentRoom === "office";
   Object.values(agents).forEach((a, i) => {
     initNeeds(a, i);
     updateNeeds(a, dt);
     const p = target(a, w2, h2, t), dx = p[0] - a.x, dy = p[1] - a.y, d = Math.hypot(dx, dy);
     a.moving = d > 3;
-    if (a.moving && !neighborhood) {
+    if (a.moving && officeSceneActive && !neighborhood) {
       const speed = 0.55;
       a.x += dx / d * speed;
       a.y += dy / d * speed;
     }
-    if (!a.hidden && !neighborhood) drawAgent(a, t);
+    if (officeSceneActive && !a.hidden && !neighborhood) drawAgent(a, t);
   });
-  if (!neighborhood) {
+  if (officeSceneActive && !neighborhood) {
     drawAtmosphere(w2, h2, t);
     Object.values(agents).forEach((a) => {
       if (!a.hidden) drawSpeech(a, t, w2);
@@ -160,6 +161,7 @@ canvas.addEventListener("click", (e) => {
     e.preventDefault();
     return;
   }
+  if (currentRoom !== "office") return;
   const p = canvasPointFromClient(e.clientX, e.clientY), x = p.x, y = p.y;
   let hit = null, best = 65;
   Object.values(agents).forEach((a) => {

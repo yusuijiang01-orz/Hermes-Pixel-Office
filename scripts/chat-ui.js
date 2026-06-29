@@ -424,6 +424,13 @@ function previewFor(kind) {
 function inputFor(kind) {
   return document.querySelector(kind === "mobile" ? "#mobileChatInput" : "#message");
 }
+function autoResizeInput(input) {
+  if (!input) return;
+  input.style.height = "auto";
+  const minHeight = input.id === "mobileChatInput" ? 44 : 40;
+  const maxHeight = input.id === "mobileChatInput" ? 140 : 132;
+  input.style.height = `${Math.max(minHeight, Math.min(maxHeight, input.scrollHeight || minHeight))}px`;
+}
 function stickerToken(name) {
   return `[${String(name || "表情包").trim() || "表情包"}]`;
 }
@@ -621,6 +628,10 @@ document.querySelector("#message").addEventListener("keyup", () => updateMention
 document.querySelector("#mobileChatInput").addEventListener("input", () => updateMentionMenu("mobile"));
 document.querySelector("#mobileChatInput").addEventListener("click", () => updateMentionMenu("mobile"));
 document.querySelector("#mobileChatInput").addEventListener("keyup", () => updateMentionMenu("mobile"));
+document.querySelectorAll("#message,#mobileChatInput").forEach((input) => {
+  autoResizeInput(input);
+  input.addEventListener("input", () => autoResizeInput(input));
+});
 document.querySelector("#mentionMenu").addEventListener("click", (e) => {
   const button = e.target.closest("[data-short]");
   if (!button) return;

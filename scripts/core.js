@@ -478,69 +478,64 @@ function drawGameRoom(w, h, t) {
 function drawBossOffice(w, h, t) {
   var _a;
   const night = (((_a = state == null ? void 0 : state.world) == null ? void 0 : _a.daylight) || 1) < 0.35;
-  px(0, 0, w, h, night ? "#14191f" : "#1e2228");
-  px(0, 20, w, h - 40, "#2a2e34");
-  px(0, h * 0.72, w, h * 0.28, "#1a2428");
-  for (let y = Math.floor(h * 0.72); y < h; y += 20) {
-    for (let x = 0; x < w; x += 60) {
-      px(x + y % 40 * 0.5, y, 58, 18, (x + y) % 80 ? "#1a2428" : "#151e22");
-    }
+  px(0, 0, w, h, night ? "#11161d" : "#172129");
+  px(0, h * 0.74, w, h * 0.26, "#1a262c");
+  for (let y = Math.floor(h * 0.74); y < h; y += 22) for (let x = 0; x < w; x += 64) px(x + y % 48 * 0.5, y, 60, 20, (x + y) % 88 ? "#182127" : "#141c21");
+  const winX = w * 0.08, winY = h * 0.1, winW = w * 0.56, winH = h * 0.28;
+  px(winX, winY, winW, winH, "#31454e");
+  px(winX + 8, winY + 8, winW - 16, winH - 16, night ? "#203040" : "#7eb3c1");
+  for (let i = 1; i < 4; i++) px(winX + i * winW / 4, winY + 8, 4, winH - 16, "#49616b");
+  px(winX + 8, winY + winH * 0.55, winW - 16, 4, "#49616b");
+  for (let i = 0; i < 12; i++) {
+    const sx = winX + 24 + i * 28;
+    const sh = 18 + (i % 4) * 12 + (night ? 8 : 0);
+    px(sx, winY + winH - 24 - sh, 18, sh, night ? "#18242c" : "#5e7f88");
+    if (night) px(sx + 4, winY + winH - 20 - sh, 4, 4, "#f4c95d");
   }
-  if (!night) {
-    ctx.save();
-    ctx.globalCompositeOperation = "screen";
-    const g = ctx.createRadialGradient(w / 2, 10, 5, w / 2, 10, 200);
-    g.addColorStop(0, "rgba(244,201,93,0.15)");
-    g.addColorStop(1, "rgba(244,201,93,0)");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, w, 200);
-    ctx.globalCompositeOperation = "source-over";
-    ctx.restore();
-  }
-  px(w * 0.3, h * 0.1, w * 0.4, 60, "#3a3a48");
-  px(w * 0.33, h * 0.12, w * 0.34, 54, "#2a3a3a");
+  ctx.save();
+  const glow = ctx.createRadialGradient(w * 0.76, h * 0.18, 6, w * 0.76, h * 0.18, 160);
+  glow.addColorStop(0, night ? "rgba(244,201,93,0.22)" : "rgba(255,242,204,0.14)");
+  glow.addColorStop(1, "rgba(244,201,93,0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(w * 0.6, 0, w * 0.4, h * 0.4);
+  ctx.restore();
+  px(w * 0.68, h * 0.1, w * 0.22, h * 0.28, "#3d2f22");
+  for (let row = 0; row < 5; row++) for (let col = 0; col < 5; col++) px(w * 0.7 + col * 18, h * 0.13 + row * 22, 12, 18, ["#6d8f7e", "#8b5d43", "#47688f", "#d0b06d"][(row + col) % 4]);
+  px(w * 0.07, h * 0.43, 18, 58, "#61735c");
+  px(w * 0.04, h * 0.36, 24, 22, "#4c8c62");
+  px(w * 0.09, h * 0.33, 22, 18, "#67a56f");
+  px(w * 0.76, h * 0.42, 16, 50, "#61735c");
+  px(w * 0.73, h * 0.35, 22, 20, "#4c8c62");
+  px(w * 0.78, h * 0.32, 22, 18, "#67a56f");
+  px(w * 0.32, h * 0.46, w * 0.3, 14, "#6b5037");
+  px(w * 0.28, h * 0.48, w * 0.38, h * 0.15, "#826f5d");
+  px(w * 0.42, h * 0.38, 92, 60, "#27343a");
+  px(w * 0.43, h * 0.39, 88, 54, "#11191d");
+  px(w * 0.44, h * 0.4, 84, 48, "#4b857a");
+  px(w * 0.46, h * 0.42, 44, 10, "#8fd2c2");
+  px(w * 0.46, h * 0.44, 54, 8, "#7ec3b2");
+  px(w * 0.47, h * 0.52, 28, 20, "#3a3d4d");
+  px(w * 0.455, h * 0.55, 38, 12, "#555a70");
+  px(w * 0.18, h * 0.57, 86, 36, "#324248");
+  px(w * 0.19, h * 0.58, 82, 32, "#49625a");
+  px(w * 0.22, h * 0.54, 28, 8, "#d7c6a0");
+  px(w * 0.58, h * 0.56, 72, 28, "#26343a");
+  px(w * 0.595, h * 0.51, 42, 16, "#56656c");
+  px(w * 0.6, h * 0.6, 18, 34, "#2f3c42");
+  px(w * 0.625, h * 0.6, 18, 34, "#2f3c42");
+  px(w * 0.34, h * 0.7, w * 0.26, 26, "#2f3544");
+  px(w * 0.36, h * 0.705, w * 0.22, 18, "#5e4d88");
   ctx.fillStyle = "#f4c95d";
-  ctx.font = "bold 14px Microsoft YaHei";
+  ctx.font = "bold 15px Microsoft YaHei";
   ctx.textAlign = "center";
-  ctx.fillText("HERMES PIXEL WORKS", w / 2, h * 0.155);
-  ctx.fillStyle = "#8a9a9a";
-  ctx.font = "10px Microsoft YaHei";
-  ctx.fillText("CEO OFFICE", w / 2, h * 0.185);
-  ctx.textAlign = "left";
-  const deskX = w * 0.25, deskY = h * 0.48, deskW = w * 0.5, deskH = h * 0.18;
-  px(deskX, deskY, deskW, 12, "#5a4a3a");
-  px(deskX + 6, deskY + 12, deskW - 12, deskH - 12, "#7a6a5a");
-  px(w * 0.38, h * 0.22, 80, 55, "#2a3a3a");
-  px(w * 0.39, h * 0.23, 78, 50, "#1a2a2a");
-  px(w * 0.39, h * 0.23, 78, 50, "#3a6a5a");
-  px(w * 0.4, h * 0.25, 55, 14, "#4a8a7a");
-  px(w * 0.4, h * 0.27, 55, 14, "#5a9a8a");
-  px(w * 0.4, h * 0.29, 40, 14, "#4a8a7a");
-  px(w * 0.68, h * 0.3, 18, 14, "#3a4a4a");
-  px(w * 0.69, h * 0.31, 12, 8, "#6a8a8a");
-  px(w * 0.55, h * 0.38, 12, 10, "#d7c6a0");
-  px(w * 0.56, h * 0.39, 10, 8, "#8a6a4a");
-  px(w * 0.12, h * 0.55, 10, 30, "#5a7a5a");
-  px(w * 0.1, h * 0.48, 14, 14, "#4a8a5a");
-  px(w * 0.82, h * 0.25, 60, 120, "#4a3a2a");
-  for (let row = 0; row < 5; row++) {
-    const sy = h * 0.26 + row * 24;
-    for (let col = 0; col < 4; col++) {
-      px(w * 0.83 + col * 14, sy + 2, 10, 20, ["#8a4a3a", "#4a8a5a", "#4a5a8a", "#8a8a4a"][(col + row) % 4]);
-    }
-  }
-  px(w * 0.48, h * 0.58, 36, 28, "#3a3a4a");
-  px(w * 0.5, h * 0.6, 32, 24, "#4a4a5a");
-  ctx.fillStyle = "#f5f3e8";
-  ctx.font = "10px Microsoft YaHei";
-  ctx.textAlign = "center";
-  ctx.fillText("老板", w / 2, h * 0.72);
-  ctx.textAlign = "left";
+  ctx.fillText("制作人办公室", w * 0.5, h * 0.17);
+  ctx.font = "11px Microsoft YaHei";
+  ctx.fillStyle = "#d9dfd8";
+  ctx.fillText("落地窗 / 书墙 / 会客区 / 主桌", w * 0.5, h * 0.195);
   ctx.fillStyle = "#f4c95d";
-  ctx.font = "bold 11px Microsoft YaHei";
-  ctx.textAlign = "center";
-  ctx.fillText("← 返回办公室", w * 0.45, h * 0.7);
-  ctx.fillText("洗手间 →", w * 0.75, h * 0.7);
+  ctx.fillText("← 返回办公室", w * 0.42, h * 0.69);
+  ctx.fillText("洗手间 →", w * 0.74, h * 0.69);
+  ctx.textAlign = "left";
 }
 function room(w, h, t = 0) {
   const glassY = Math.max(132, h * 0.22);
@@ -1899,6 +1894,8 @@ function updateRoomUI() {
   const roomHome = document.getElementById("roomHome");
   const gameActions = document.getElementById("gameActions");
   const inRoom = currentRoom !== "office";
+  document.body.classList.toggle("room-boss", currentRoom === "boss");
+  document.body.classList.toggle("room-game", currentRoom === "game");
   roomBack == null ? void 0 : roomBack.classList.toggle("visible", inRoom);
   roomHome == null ? void 0 : roomHome.classList.toggle("visible", inRoom);
   gameActions == null ? void 0 : gameActions.classList.toggle("active", currentRoom === "game");

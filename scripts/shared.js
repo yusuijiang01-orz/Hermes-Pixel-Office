@@ -6,7 +6,9 @@ window.HermesShared.markBoot = function(stage) {
   window.__hermesBootAlive = stage;
 };
 window.HermesShared.isMobileView = function() {
-  return innerWidth <= 700;
+  const coarsePointer = window.matchMedia ? window.matchMedia("(pointer: coarse)").matches : false;
+  const compactViewport = Math.max(innerWidth, innerHeight) <= 1100;
+  return coarsePointer && compactViewport;
 };
 window.HermesShared.reportBootIssue = function(message) {
   const ls = document.getElementById("loading-screen");

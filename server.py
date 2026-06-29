@@ -1674,9 +1674,9 @@ def group_task_body(group_id, round_no, profile, owner_message, transcript, comp
     if origin == "internal" and round_no == 1 and profile == initiator:
         ending = "这轮你是先开口的人。别解释背景，直接像在公司群里顺手抛一句能引人接话的人话。"
     elif final_round:
-        ending = "这是自然收尾轮。只有确实有新内容、需要回答@或值得形成行动时才发言；否则只输出 [SILENT]。不要解释为什么沉默。"
+        ending = "这是自然收尾轮。优先补一句态度、追问、吐槽或接梗来把群聊接住；只有真的完全没新内容时才输出 [SILENT]。不要解释为什么沉默。"
     else:
-        ending = "先回应群里已有的一个具体观点，再提出补充、异议、追问或新联想；不必同意，也不必强行收束。"
+        ending = "先回应群里已有的一个具体观点，再提出补充、异议、追问或新联想；不必同意，也不必强行收束。尽量像真实同事群一样把话题接热，而不是礼貌性回一句就结束。"
     source = "老板发起" if origin == "boss" else f"{initiator_info['short']}随口起头"
     return f"""你正在 Hermes Pixel Works 的实时内部群聊，不是在写报告或完成问答题。
 
@@ -1695,7 +1695,7 @@ def group_task_body(group_id, round_no, profile, owner_message, transcript, comp
 - 只说你自己会说的话，不替其他人发言。
 - 可使用 @阿默、@小韩、@小研、@小文，允许接梗、反驳、追问、阴阳怪气和轻微吐槽老板。
 - 这是即时聊天，不是工作汇报。可以半句、插话、反问、接上文、吐槽，像同事，不像客服。
-- 每条消息 4-60 个汉字；一次输出 1-3 条，每条单独一行并以 [CHAT] 开头。
+- 每条消息 4-90 个汉字；一次输出 1-4 条，每条单独一行并以 [CHAT] 开头。
 - 禁止标题、列表、工作汇报格式、英文思考过程和“已完成/下一步”套话。
 - 禁止出现这些字样：任务完成、群聊回复完成、以自然口语化方式、保持沉默是合理的、作为某某补充说明。
 - 不知道就问，不确定就明确说不确定；不得虚构文件、测试、进度或联网结果。
