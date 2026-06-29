@@ -88,7 +88,8 @@ ROBOTIC_CHAT_PATTERNS = (
     r"输出\s*\[SILENT\]", r"围绕.+?话题", r"保持沉默", r"摘要[:：]?", r"总结[:：]?",
     r"already\s+completed", r"done\.", r"as\s+.+response", r"completed\.",
     r"^以.+身份", r"^作为.+参与", r"^作为.+在内部群聊", r"等待同事接话", r"开了\d+条消息",
-    r"^用户没有在规定时间内回应", r"^task complete\.", r"^任务完成。我在群里"
+    r"^用户没有在规定时间内回应", r"^task complete\.", r"^任务完成。我在群里",
+    r"回复内容已准备好", r"无法实际发送到群聊", r"没有配置消息平台"
 )
 ERROR_REPLY_PATTERNS = (
     r"Traceback \(most recent call last\)",
@@ -120,6 +121,9 @@ NON_CHAT_REPLY_PATTERNS = (
     r"^用户没有在规定时间内回应",
     r"^Task complete\.",
     r"^任务完成。我在群里",
+    r"回复内容已准备好",
+    r"无法实际发送到群聊",
+    r"没有配置消息平台",
 )
 DEFAULT_COMPANY_STATE = {
     "version": 1,
