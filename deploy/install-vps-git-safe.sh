@@ -11,6 +11,7 @@ ADMIN_USER="admin"
 ADMIN_PASS=""
 HERMES_EXE="/usr/local/bin/hermes"
 HERMES_HOME="/var/lib/hermes-pixel-office/.hermes"
+FAST_STATE_ONLY="1"
 EMAIL=""
 NO_SSL="0"
 REPO_URL=""
@@ -48,6 +49,7 @@ Options:
   --admin-pass        Nginx Basic Auth password. Prompted if omitted.
   --hermes-exe        Hermes CLI path on VPS. Default: /usr/local/bin/hermes.
   --hermes-home       Hermes data directory. Default: /var/lib/hermes-pixel-office/.hermes.
+  --fast-state-only   Set HERMES_FAST_STATE_ONLY (1/0). Default: 1 for low-memory VPS safety.
   --email             Email for Let's Encrypt when --domain is set.
   --app-dir           Install directory. Default: /opt/hermes-pixel-office.
   --skip-nginx-install
@@ -68,6 +70,7 @@ while [[ $# -gt 0 ]]; do
     --admin-pass) ADMIN_PASS="${2:-}"; shift 2 ;;
     --hermes-exe) HERMES_EXE="${2:-}"; shift 2 ;;
     --hermes-home) HERMES_HOME="${2:-}"; shift 2 ;;
+    --fast-state-only) FAST_STATE_ONLY="${2:-}"; shift 2 ;;
     --email) EMAIL="${2:-}"; shift 2 ;;
     --app-dir) APP_DIR="${2:-}"; shift 2 ;;
     --skip-nginx-install) SKIP_NGINX_INSTALL="1"; shift ;;
@@ -144,6 +147,7 @@ cat >"/etc/${APP_NAME}.env" <<EOF
 PORT=${PORT}
 HERMES_EXE=${HERMES_EXE}
 HERMES_HOME=${HERMES_HOME}
+HERMES_FAST_STATE_ONLY=${FAST_STATE_ONLY}
 EOF
 chmod 640 "/etc/${APP_NAME}.env"
 chown root:"${SERVICE_USER}" "/etc/${APP_NAME}.env"

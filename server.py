@@ -35,6 +35,7 @@ WEB_AUTH_SECRET = os.environ.get("HERMES_WEB_SECRET", "").strip() or hashlib.sha
 ).hexdigest()
 WEB_AUTH_MAX_AGE = int(os.environ.get("HERMES_WEB_AUTH_MAX_AGE", str(30 * 24 * 3600)))
 FAST_BOARD_SLUG = os.environ.get("HERMES_BOARD", "relicbound-arpg")
+FAST_STATE_ONLY = os.environ.get("HERMES_FAST_STATE_ONLY", "").strip().lower() in {"1", "true", "yes", "on"}
 PROFILES = {
     "default": {"name": "制作人 阿默", "short": "阿默", "role": "主程 / 制作人", "personality": "沉稳务实、略带冷幽默；只认真实文件、测试和可交付版本", "chat": "说话短、直接，常拿实际文件或测试戳破空话；熟了会冷幽默，偶尔吐槽老板拍脑袋"},
     "planner": {"name": "策划主编 小韩", "short": "小韩", "role": "主管 / 游戏策划", "personality": "有主见、行动快、产品意识强；负责取舍、拆解和带队", "chat": "反应快、有主见，会追问玩家价值；会拍板，也会在群里接梗、催人、阴阳怪气两句"},
@@ -1960,7 +1961,7 @@ def state_signature(state):
 
 def refresh_state_cache():
     global STATE_CACHE, STATE_CACHE_SIGNATURE
-    state = get_state()
+    state = fast_state() if FAST_STATE_ONLY else get_state()
     signature = state_signature(state)
     with STATE_COND:
         STATE_CACHE = state
@@ -1974,8 +1975,11 @@ def cached_state():
     global STATE_CACHE
     with STATE_COND:
         if STATE_CACHE is not None:
-            STATE_REFRESH_WAKE.set()
+            if not FAST_STATE_ONLY:
+                STATE_REFRESH_WAKE.set()
             return json.loads(json.dumps(STATE_CACHE, ensure_ascii=False))
+    if FAST_STATE_ONLY:
+        return refresh_state_cache()
     STATE_REFRESH_WAKE.set()
     return fast_state()
 
@@ -2356,6 +2360,8 @@ def _sediment_loop(board_slug):
 
 def start_sediment_scheduler():
     """Start the background sediment scan thread if not already running."""
+    if FAST_STATE_ONLY:
+        return
     if SEDIMENT_RUNNING:
         return
     try:
