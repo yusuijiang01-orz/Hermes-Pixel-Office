@@ -1032,6 +1032,14 @@ def web_auth_enabled():
     return bool(WEB_AUTH_USER and WEB_AUTH_PASSWORD)
 
 
+def plugin_api_key():
+    if API_KEY:
+        return API_KEY
+    if not web_auth_enabled():
+        return ""
+    return hmac.new(WEB_AUTH_SECRET.encode("utf-8"), b"hermes-plugin-api", hashlib.sha256).hexdigest()
+
+
 def sign_auth_value(payload):
     return hmac.new(WEB_AUTH_SECRET.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
 
@@ -1929,11 +1937,12 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
 
     def api_authorized(self):
-        if not API_KEY:
+        if not API_KEY and not web_auth_enabled():
             return True
         query_key = parse_qs(urlparse(self.path).query).get("api_key", [""])[0]
         sent = self.headers.get("X-Hermes-Api-Key", "") or query_key
-        return hmac.compare_digest(sent, API_KEY)
+        valid_keys = [key for key in (API_KEY, plugin_api_key()) if key]
+        return any(hmac.compare_digest(sent, key) for key in valid_keys)
 
     def web_authorized(self):
         return verify_auth_cookie(self.headers.get("Cookie", ""))
@@ -1966,10 +1975,11 @@ class Handler(SimpleHTTPRequestHandler):
             else:
                 self.send_html(login_page())
             return
-        if web_auth_enabled() and not self.web_authorized():
+        api_key_ok = path.startswith("/api/") and self.api_authorized()
+        if web_auth_enabled() and not (self.web_authorized() or api_key_ok):
             self.reject_unauthorized()
             return
-        if path.startswith("/api/") and path not in ("/api/scene/load", "/api/world/objects") and not self.api_authorized():
+        if path.startswith("/api/") and not self.web_authorized() and path not in ("/api/scene/load", "/api/world/objects") and not self.api_authorized():
             self.send_json({"error": "API KEY 无效"}, 401)
             return
         if path == "/api/scene/load":
@@ -2054,6 +2064,23 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(self.path).path
+        if path == "/api/plugin/login":
+            try:
+                size = int(self.headers.get("Content-Length", 0))
+                raw = self.rfile.read(size).decode("utf-8", errors="replace")
+                try:
+                    payload = json.loads(raw or "{}")
+                except Exception:
+                    payload = {k: v[0] for k, v in parse_qs(raw).items()}
+                username = str(payload.get("username", ""))
+                password = str(payload.get("password", ""))
+                if web_auth_enabled() and hmac.compare_digest(username, WEB_AUTH_USER) and hmac.compare_digest(password, WEB_AUTH_PASSWORD):
+                    self.send_json({"ok": True, "api_key": plugin_api_key(), "max_age": WEB_AUTH_MAX_AGE})
+                else:
+                    self.send_json({"error": "用户名或密码不对"}, 401)
+            except Exception as exc:
+                self.send_json({"error": str(exc)}, 500)
+            return
         if path == "/login":
             try:
                 size = int(self.headers.get("Content-Length", 0))
@@ -2073,11 +2100,12 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as exc:
                 self.send_html(login_page(str(exc)), 500)
             return
-        if web_auth_enabled() and not self.web_authorized():
+        api_key_ok = path.startswith("/api/") and self.api_authorized()
+        if web_auth_enabled() and not (self.web_authorized() or api_key_ok):
             self.reject_unauthorized()
             return
         same_origin_write = path in ("/api/scene/save", "/api/world/report") and self.same_origin_request()
-        if path.startswith("/api/") and not same_origin_write and not self.api_authorized():
+        if path.startswith("/api/") and not self.web_authorized() and not same_origin_write and not self.api_authorized():
             self.send_json({"error": "API KEY 无效"}, 401)
             return
         if path == "/api/scene/save":

@@ -1,5 +1,7 @@
 (() => {
-  const API = "http://127.0.0.1:8777";
+  const DEFAULT_API = "https://pix.lovenom.eu.org";
+  const STORAGE_KEYS = { base: "hermesApiBase", key: "hermesApiKey" };
+  let config = { apiBase: DEFAULT_API, apiKey: "" };
   if (!/(^|\.)amazon\./i.test(location.hostname)) return;
   if (document.getElementById("hermes-amz-panel")) return;
 
@@ -28,7 +30,14 @@
   panel.innerHTML = `
     <div class="hermes-amz-head">
       <div><div class="hermes-amz-title">Compare similar customer questions</div><div class="hermes-amz-status">Connecting...</div></div>
-      <div class="hermes-amz-actions"><button type="button" data-follow>Latest</button><button type="button" data-hide>Hide</button><button type="button" data-refresh>Refresh</button></div>
+      <div class="hermes-amz-actions"><button type="button" data-follow>Latest</button><button type="button" data-login>Login</button><button type="button" data-hide>Hide</button><button type="button" data-refresh>Refresh</button></div>
+    </div>
+    <div class="hermes-amz-auth">
+      <input data-api-base placeholder="Hermes URL">
+      <input data-login-user placeholder="User" autocomplete="username">
+      <input data-login-pass placeholder="Password" type="password" autocomplete="current-password">
+      <button type="button" data-do-login>Connect</button>
+      <button type="button" data-open-login>Web</button>
     </div>
     <div class="hermes-amz-tabs">
       <button type="button" class="active" data-mode="group">Q&A</button>
@@ -202,14 +211,86 @@
 
   const statusEl = panel.querySelector(".hermes-amz-status");
   const msgs = panel.querySelector(".hermes-amz-msgs");
-  const input = panel.querySelector("input");
+  const input = panel.querySelector(".hermes-amz-row input");
   const preview = panel.querySelector(".hermes-amz-preview");
   const pop = panel.querySelector(".hermes-amz-pop");
+  const authBar = panel.querySelector(".hermes-amz-auth");
+  const apiBaseInput = panel.querySelector("[data-api-base]");
+  const loginUserInput = panel.querySelector("[data-login-user]");
+  const loginPassInput = panel.querySelector("[data-login-pass]");
 
   function esc(value) {
     const d = document.createElement("div");
     d.textContent = value || "";
     return d.innerHTML;
+  }
+
+  function normalizeBase(value) {
+    return String(value || DEFAULT_API).trim().replace(/\/+$/, "") || DEFAULT_API;
+  }
+
+  function api(path) {
+    return normalizeBase(config.apiBase) + path;
+  }
+
+  function apiHeaders(json = false) {
+    const headers = {};
+    if (json) headers["Content-Type"] = "application/json";
+    if (config.apiKey) headers["X-Hermes-Api-Key"] = config.apiKey;
+    return headers;
+  }
+
+  function apiEventUrl(path) {
+    const url = new URL(api(path));
+    if (config.apiKey) url.searchParams.set("api_key", config.apiKey);
+    return url.toString();
+  }
+
+  function storageGet(keys) {
+    return new Promise(resolve => {
+      try {
+        if (chrome?.storage?.local) chrome.storage.local.get(keys, resolve);
+        else resolve({});
+      } catch {
+        resolve({});
+      }
+    });
+  }
+
+  function storageSet(values) {
+    return new Promise(resolve => {
+      try {
+        if (chrome?.storage?.local) chrome.storage.local.set(values, resolve);
+        else resolve();
+      } catch {
+        resolve();
+      }
+    });
+  }
+
+  function setAuthOpen(open) {
+    authBar.classList.toggle("open", open);
+    apiBaseInput.value = normalizeBase(config.apiBase);
+    loginUserInput.value = loginUserInput.value || "admin";
+  }
+
+  function authError(data, response) {
+    return response?.status === 401 || /请先登录|API KEY|用户名或密码/.test(String(data?.error || ""));
+  }
+
+  async function loadConfig() {
+    const stored = await storageGet([STORAGE_KEYS.base, STORAGE_KEYS.key]);
+    config.apiBase = normalizeBase(stored[STORAGE_KEYS.base] || localStorage.getItem(STORAGE_KEYS.base) || DEFAULT_API);
+    config.apiKey = String(stored[STORAGE_KEYS.key] || localStorage.getItem(STORAGE_KEYS.key) || "");
+    apiBaseInput.value = config.apiBase;
+    if (!config.apiKey) setAuthOpen(true);
+  }
+
+  async function saveConfig() {
+    config.apiBase = normalizeBase(apiBaseInput.value);
+    await storageSet({ [STORAGE_KEYS.base]: config.apiBase, [STORAGE_KEYS.key]: config.apiKey });
+    localStorage.setItem(STORAGE_KEYS.base, config.apiBase);
+    localStorage.setItem(STORAGE_KEYS.key, config.apiKey);
   }
 
   function shortName(message) {
@@ -390,9 +471,15 @@
 
   async function refresh() {
     try {
-      const response = await fetch(`${API}/api/state`, { cache: "no-store" });
-      applyServerState(await response.json(), "poll");
-    } catch {
+      const response = await fetch(api("/api/state"), { cache: "no-store", headers: apiHeaders() });
+      const data = await response.json();
+      if (authError(data, response)) {
+        statusEl.textContent = "Login required";
+        setAuthOpen(true);
+        return;
+      }
+      applyServerState(data, "poll");
+    } catch (err) {
       statusEl.textContent = "Local assistant offline";
     }
     schedulePoll();
@@ -400,7 +487,7 @@
 
   function connectRealtime() {
     if (!window.EventSource || realtimeSource) return;
-    realtimeSource = new EventSource(`${API}/api/events`);
+    realtimeSource = new EventSource(apiEventUrl("/api/events"));
     realtimeSource.addEventListener("open", () => {
       realtimeConnected = true;
       clearTimeout(timer);
@@ -431,12 +518,17 @@
   async function send(text, items = []) {
     const payload = { mode, message: text || attachmentPrompt(items), attachments: items, board: state?.board?.slug };
     if (mode === "private") payload.agent = agent;
-    const response = await fetch(`${API}/api/message`, {
+    const response = await fetch(api("/api/message"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(true),
       body: JSON.stringify(payload)
     });
     const data = await response.json();
+    if (authError(data, response)) {
+      statusEl.textContent = "Login required";
+      setAuthOpen(true);
+      return;
+    }
     pending.push(...(data.messages || []));
     userReading = false;
     render();
@@ -576,6 +668,39 @@
   }, true);
   panel.querySelector("[data-refresh]").addEventListener("click", refresh);
   panel.querySelector("[data-follow]").addEventListener("click", followLatest);
+  panel.querySelector("[data-login]").addEventListener("click", () => setAuthOpen(!authBar.classList.contains("open")));
+  panel.querySelector("[data-open-login]").addEventListener("click", () => {
+    config.apiBase = normalizeBase(apiBaseInput.value);
+    window.open(api("/login"), "_blank", "noopener,noreferrer");
+  });
+  panel.querySelector("[data-do-login]").addEventListener("click", async () => {
+    config.apiBase = normalizeBase(apiBaseInput.value);
+    statusEl.textContent = "Logging in...";
+    try {
+      const response = await fetch(api("/api/plugin/login"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: loginUserInput.value.trim(), password: loginPassInput.value })
+      });
+      const data = await response.json();
+      if (!response.ok || !data.api_key) throw new Error(data.error || "Login failed");
+      config.apiKey = data.api_key;
+      loginPassInput.value = "";
+      await saveConfig();
+      setAuthOpen(false);
+      if (realtimeSource) {
+        realtimeSource.close();
+        realtimeSource = null;
+      }
+      realtimeConnected = false;
+      statusEl.textContent = "Login OK";
+      connectRealtime();
+      refresh();
+    } catch (err) {
+      statusEl.textContent = err.message || "Login failed";
+      setAuthOpen(true);
+    }
+  });
   msgs.addEventListener("scroll", () => {
     userReading = !nearBottom();
     updateFollowButton();
@@ -592,6 +717,8 @@
     }, 120);
   });
 
-  connectRealtime();
-  refresh();
+  loadConfig().then(() => {
+    connectRealtime();
+    refresh();
+  });
 })();

@@ -2,7 +2,7 @@
 #rightCol>#hermes-amz-slot{clear:both}
 #hermes-amz-slot.hermes-sidecar-slot{position:absolute;left:var(--hermes-left);top:var(--hermes-top);width:var(--hermes-width);height:var(--hermes-height);z-index:50;margin:0}
 #hermes-amz-slot.hermes-rail-slot{position:fixed;right:0;top:50%;transform:translateY(-50%);width:74px;height:min(520px,calc(100vh - 170px));z-index:2147483000;margin:0;cursor:pointer}
-#hermes-amz-panel{font-family:Arial,sans-serif;color:#111;background:#fff;border:1px solid #d5d9d9;border-radius:8px;width:100%;height:min(560px,calc(100vh - 165px));display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;overflow:hidden;box-shadow:none}
+#hermes-amz-panel{font-family:Arial,sans-serif;color:#111;background:#fff;border:1px solid #d5d9d9;border-radius:8px;width:100%;height:min(560px,calc(100vh - 165px));display:grid;grid-template-rows:auto auto auto minmax(0,1fr) auto;overflow:hidden;box-shadow:none}
 #hermes-amz-slot.hermes-sidecar-slot #hermes-amz-panel{height:100%;box-shadow:none}
 #hermes-amz-slot.hermes-rail-slot #hermes-amz-panel{position:absolute;right:0;top:0;width:360px;box-shadow:0 2px 10px #00000014}
 #hermes-amz-panel.hermes-hidden{position:absolute;right:0;top:0;width:18px!important;height:100%!important;min-height:260px;border-radius:6px 0 0 6px;border-right:0;background:#f7fafa;display:block;overflow:visible;padding:0}
@@ -15,6 +15,7 @@
 .hermes-amz-title{font-size:14px;font-weight:700}.hermes-amz-status{font-size:12px;color:#007185;margin-top:3px}
 .hermes-amz-actions{display:flex;gap:6px}.hermes-amz-actions button,.hermes-amz-tabs button{border:1px solid #d5d9d9;background:#f7fafa;border-radius:6px;height:28px;padding:0 9px;font-size:12px;color:#111}
 .hermes-amz-actions [data-follow]{display:none;background:#ffd814;border-color:#f0c14b}.hermes-amz-actions [data-follow].hermes-visible{display:inline-block}
+.hermes-amz-auth{display:none;grid-template-columns:1fr 72px 86px auto auto;gap:6px;padding:8px 10px;border-bottom:1px solid #eee;background:#f7fafa}.hermes-amz-auth.open{display:grid}.hermes-amz-auth input{height:30px;border:1px solid #a6a6a6;border-radius:4px;padding:0 7px;min-width:0;color:#111;background:#fff}.hermes-amz-auth button{height:30px;border:1px solid #d5d9d9;border-radius:6px;background:#fff;color:#111;font-size:12px}.hermes-amz-auth [data-do-login]{background:#ffd814;border-color:#f0c14b}
 .hermes-amz-tabs{display:flex;gap:6px;padding:10px 12px;border-bottom:1px solid #eee;background:#fff}
 .hermes-amz-tabs button.active{background:#232f3e;color:#fff}
 .hermes-amz-msgs{min-height:0;overflow:auto;padding:12px;background:#fbfbfb;display:flex;flex-direction:column;gap:8px}

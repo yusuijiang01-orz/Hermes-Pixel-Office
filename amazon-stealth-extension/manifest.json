@@ -1,12 +1,13 @@
 {
   "manifest_version": 3,
   "name": "Hermes Amazon Q&A Panel",
-  "version": "0.1.9",
+  "version": "0.2.0",
   "description": "Show a stealth Amazon-style Hermes chat panel on Amazon pages.",
   "permissions": ["storage"],
   "host_permissions": [
     "http://127.0.0.1:8777/*",
     "http://localhost:8777/*",
+    "https://pix.lovenom.eu.org/*",
     "https://amazon.com/*",
     "https://*.amazon.com/*",
     "https://amazon.co.uk/*",
