@@ -52,7 +52,7 @@ function avatarMarkup(id, label, size = "small") {
   return `<div class="mobile-avatar ${size}">${esc(label || (id || "?").slice(0, 1).toUpperCase())}</div>`;
 }
 function uiNoise(text) {
-  return englishLeak(text) || /^(消息[:：]?|Done\.|As\s|Already completed|任务完成|任务已完成|完成。作为|作为.+?(发了|回复了)|\[Acknowledged\]|\d+\.)/i.test(cleanSpeechText(text)) || /(任务完成|任务已完成|群聊规则|控制在4-60字|符合群聊规则|自然收尾|没有制造额外任务|消息已发送|纯闲聊回复|输出\[SILENT\]|\[SILENT\]|围绕.+?话题|保持沉默|老板宣布散会|总结[:：]?|摘要[:：]?)/.test(cleanSpeechText(text));
+  return englishLeak(text) || /^(消息[:：]?|Done\.|As\s|Already completed|任务完成|任务已完成|完成。作为|作为.+?(发了|回复了|参与了)|以.+身份|\[Acknowledged\]|\d+\.|review diff|┊ review diff)/i.test(cleanSpeechText(text)) || /(任务完成|任务已完成|群聊规则|控制在4-60字|符合群聊规则|自然收尾|没有制造额外任务|消息已发送|纯闲聊回复|输出\[SILENT\]|\[SILENT\]|围绕.+?话题|保持沉默|老板宣布散会|总结[:：]?|摘要[:：]?|执行器断了一下|Reached maximum iterations|完整 patch|DevTools|等待同事接话|开了\d+条消息)/.test(cleanSpeechText(text));
 }
 function compactText(text, max = 42) {
   const cleaned = cleanSpeechText(text).replace(/^消息[:：]?\s*/, "").replace(/\s+/g, " ").trim();
@@ -67,6 +67,9 @@ function validChatLines(msg) {
   const reply = cleanSpeechText((msg == null ? void 0 : msg.reply) || "");
   if (reply && !/\[Kanban cleanup\b/i.test(reply) && !uiNoise(reply)) return [reply];
   return [];
+}
+function isRenderableGroupMessage(msg) {
+  return !!msg && msg.mode === "group" && msg.origin !== "system" && !msg.notice;
 }
 function fallbackPreview(msg) {
   const lines = String((msg == null ? void 0 : msg.reply) || "").split("\n").map((line) => cleanSpeechText(line)).filter((line) => line && !uiNoise(line));
@@ -106,7 +109,7 @@ function groupTopic(group) {
 }
 function getGroupThreads() {
   var _a2;
-  const items = ((state == null ? void 0 : state.messages) || []).filter((msg) => msg.mode === "group");
+  const items = ((state == null ? void 0 : state.messages) || []).filter((msg) => isRenderableGroupMessage(msg));
   const latestFeed = ((state == null ? void 0 : state.team_feed) || []).filter((item) => (item == null ? void 0 : item.text) && !uiNoise(item.text)).slice(-1)[0];
   const latestMessage = items.slice().sort((a, b) => (b.created || 0) - (a.created || 0))[0];
   return [{
@@ -226,7 +229,7 @@ function renderMobileChatScreen() {
   title.textContent = mobileState.conversation === "team" ? "全员群聊" : "群聊讨论";
   subtitle.textContent = ((_b2 = state == null ? void 0 : state.board) == null ? void 0 : _b2.name) || "团队频道";
   const groups = /* @__PURE__ */ new Map();
-  all.filter((msg) => msg.mode === "group" && (mobileState.conversation === "team" || msg.conversation === mobileState.conversation)).forEach((msg) => {
+  all.filter((msg) => isRenderableGroupMessage(msg) && (mobileState.conversation === "team" || msg.conversation === mobileState.conversation)).forEach((msg) => {
     const key = mobileState.conversation === "team" ? msg.conversation || "team" : mobileState.conversation || "team";
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(msg);
@@ -572,7 +575,7 @@ function renderChat() {
     const hash = `group:${dataHash}`;
     if (hash === _prevGroupHash && _lastRenderVersion && _renderedChatMode === "group") return;
     if (_renderedChatMode !== "group") box.innerHTML = "";
-    const items = all.filter((m) => m.mode === "group"), groups = /* @__PURE__ */ new Map();
+    const items = all.filter((m) => isRenderableGroupMessage(m)), groups = /* @__PURE__ */ new Map();
     items.forEach((m) => {
       if (!groups.has(m.conversation)) groups.set(m.conversation, []);
       groups.get(m.conversation).push(m);

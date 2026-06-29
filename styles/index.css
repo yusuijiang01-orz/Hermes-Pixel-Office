@@ -23,7 +23,7 @@
 .fun-btn{position:absolute;z-index:6;right:14px;top:52px;height:32px;padding:0 12px;border:2px solid #b78145;background:#2a3a3a;color:#f4c95d;font-weight:900;font-size:12px;cursor:pointer;box-shadow:2px 2px 0 #1a2429;transition:all .15s}.fun-btn.active{background:#f4c95d;color:#192126;box-shadow:2px 2px 0 #b78145}.fun-btn:hover{background:#3a4a4a}.fun-btn:hover.active{background:#ffe066}.fun-dialogue{position:absolute;z-index:7;left:50%;transform:translateX(-50%);bottom:40px;padding:10px 16px;background:rgba(20,26,30,0.95);border:2px solid #f4c95d;color:#f4c95d;font-size:13px;max-width:80%;text-align:center;pointer-events:none;opacity:0;transition:opacity .3s;line-height:1.5;white-space:pre-wrap}.fun-dialogue.visible{opacity:1}.fun-dialogue .fun-speaker{color:#e7c765;font-weight:700;font-size:11px;display:block;margin-bottom:3px}
 .room-boss .camera,.room-game .camera,.room-boss .edit-fab,.room-game .edit-fab,.room-boss .fun-btn,.room-game .fun-btn{display:none!important}
     .mobile-shell{display:none;background:#d6d8ea;color:#1e2428;position:fixed;inset:0;overflow:hidden;z-index:5}
-    .mobile-page{display:none;height:100%;padding:12px 0 84px;overflow:auto;overflow-x:hidden;background:linear-gradient(180deg,#dce0ef 0,#d1d5e5 160px,#efefe9 160px,#efefe9 100%)}
+    .mobile-page{display:none;height:100%;padding:12px 0 calc(96px + env(safe-area-inset-bottom,0px));overflow:auto;overflow-x:hidden;background:linear-gradient(180deg,#dce0ef 0,#d1d5e5 160px,#efefe9 160px,#efefe9 100%)}
     .mobile-page.active{display:block}
     .mobile-top{padding:6px 18px 0}
     .mobile-status{display:flex;justify-content:space-between;align-items:center;font-weight:800;font-size:13px;color:#1b2024;margin-bottom:10px}
@@ -71,17 +71,17 @@
     .game-enter-btn{position:absolute;bottom:10px;right:16px;z-index:15;width:110px;height:48px;border:3px solid #7b8794;background:#e8e4d8;color:#344848;font-weight:900;font-size:13px;border-radius:6px;cursor:pointer;box-shadow:3px 3px 0 #c3c0b0;display:none}
     .game-enter-btn.active{display:block}
     .game-enter-btn:hover{background:#d0b890}
-    .mobile-bottom-nav{position:absolute;left:0;right:0;bottom:0;height:74px;background:#f7f4ea;border-top:3px solid #55646c;display:grid;grid-template-columns:repeat(3,1fr)}
+    .mobile-bottom-nav{position:absolute;left:0;right:0;bottom:0;height:calc(80px + env(safe-area-inset-bottom,0px));padding-bottom:calc(8px + env(safe-area-inset-bottom,0px));background:#f7f4ea;border-top:3px solid #55646c;display:grid;grid-template-columns:repeat(3,1fr)}
     .mobile-bottom-nav button{position:relative;border:0;background:transparent;color:#5f6d73;font-weight:900;font-size:13px}
     .mobile-bottom-nav button.active{color:#1f8fff}
     .mobile-bottom-nav .nav-badge{position:absolute;top:8px;right:24px;min-width:20px;height:20px;padding:0 5px;border:2px solid #a43a2d;background:#f6654b;color:#fff;font-size:10px;display:grid;place-items:center}
-    .mobile-chat-screen{position:absolute;inset:0;background:#f4f0e4;display:none;grid-template-rows:auto 1fr auto auto;z-index:6}
+    .mobile-chat-screen{position:absolute;inset:0;background:#f4f0e4;display:none;grid-template-rows:auto 1fr auto auto;z-index:6;padding-bottom:env(safe-area-inset-bottom,0px)}
     .mobile-chat-screen.open{display:grid}
     .mobile-chat-head{display:flex;align-items:center;gap:10px;padding:12px 14px;background:#1d282f;color:#f1f4ef;border-bottom:3px solid #0d1215}
     .mobile-chat-back{width:38px;height:38px;border:2px solid #5b6d72;background:#31424a;color:#fff;font-size:20px}
     .mobile-chat-title{font-size:16px;font-weight:900}
     .mobile-chat-sub{font-size:11px;color:#9fb6b0;margin-top:3px}
-    .mobile-chat-body{overflow:auto;padding:14px;display:flex;flex-direction:column;gap:10px;background:linear-gradient(180deg,#d8deeb 0,#efe7d8 120px,#f7f2e7 100%)}
+    .mobile-chat-body{overflow:auto;padding:14px 14px calc(136px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:10px;background:linear-gradient(180deg,#d8deeb 0,#efe7d8 120px,#f7f2e7 100%)}
     .mobile-chat-body .bubble{max-width:88%;padding:12px 14px;border:3px solid #5b666d;box-shadow:3px 3px 0 #d3d6de;color:#1a2328;line-height:1.65}
     .mobile-chat-body .theirs{background:#fff9ee;border-color:#667279;color:#1e2529}
     .mobile-chat-body .mine{background:#4f8a78;border-color:#284d45;color:#f5fffb;box-shadow:3px 3px 0 #b9d3ca}
@@ -91,12 +91,12 @@
     .mobile-chat-body .msg-wrapper>.bubble.mine{align-self:flex-end}
     .mobile-chat-body .msg-wrapper>.bubble.theirs{align-self:flex-start}
     .mobile-chat-body .bubble-name{color:#b67a10;font-size:12px}
-    .mobile-chat-compose{display:grid;grid-template-columns:1fr;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px));background:#f7f4ea;border-top:3px solid #5c696d}
+    .mobile-chat-compose{display:grid;grid-template-columns:1fr;gap:8px;padding:12px 12px calc(20px + env(safe-area-inset-bottom,0px));background:#f7f4ea;border-top:3px solid #5c696d}
     .mobile-chat-compose textarea{min-height:44px;max-height:140px;padding:10px 12px;border:3px solid #5f7076;background:#fffdf5;color:#1f262b;outline:none;resize:none;overflow:auto;line-height:1.45;font:inherit}
     .mobile-chat-compose textarea::placeholder{color:#8b9491}
     .mobile-chat-compose button{border:0;background:#dfb34f;color:#1f262b;font-weight:900;font-size:18px}
     .mobile-chat-compose .composer-row{display:grid;grid-template-columns:1fr 48px;gap:8px;align-items:end}
-    .mobile-chat-compose .chat-panel{left:12px;right:12px;bottom:calc(96px + env(safe-area-inset-bottom,0px))}
+    .mobile-chat-compose .chat-panel{left:12px;right:12px;bottom:calc(118px + env(safe-area-inset-bottom,0px))}
     .mobile-chat-screen .mention-menu{left:12px;right:12px;bottom:64px;background:#f7f4ea;border:3px solid #6a747a;box-shadow:4px 4px 0 #c8c3b7}
     .mobile-chat-screen .mention-option{background:#fff9ee;color:#1f2529}
     .mobile-chat-screen .mention-option span{color:#67737a}
@@ -112,7 +112,7 @@
     .room-rescue{position:absolute;z-index:9;left:14px;top:14px;height:38px;padding:0 14px;border:3px solid #314046;background:#f4c95d;color:#182127;font-weight:900;font-size:13px;box-shadow:4px 4px 0 #0b1114;display:none}
     .room-rescue.visible{display:block}
     .room-rescue.secondary{left:126px;background:#26343a;color:#f4c95d;border-color:#53656a}
-    .mobile-office-back{display:none;position:absolute;left:50%;bottom:26px;transform:translateX(-50%);z-index:4;min-width:108px;height:54px;padding:0 18px;border:3px solid #314046;background:#f6c95e;color:#192126;font-weight:900;box-shadow:0 8px 0 #4f5e65;border-radius:3px}
+    .mobile-office-back{display:none;position:absolute;left:50%;bottom:calc(30px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:4;min-width:108px;height:54px;padding:0 18px;border:3px solid #314046;background:#f6c95e;color:#192126;font-weight:900;box-shadow:0 8px 0 #4f5e65;border-radius:3px}
     .mobile-office-back.mobile-edit-btn{background:#477267;border-color:#2a3d3a;box-shadow:0 8px 0 #1a3330;color:#fff}
     .mobile-office-back.mobile-edit-btn.active{background:#e76f51;border-color:#c44a3a;box-shadow:0 4px 0 #7a2e22;transform:translateX(-50%) translateY(4px)}
     #mobileOfficeBack{left:50%}

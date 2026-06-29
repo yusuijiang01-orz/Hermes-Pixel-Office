@@ -86,7 +86,8 @@ ROBOTIC_CHAT_PATTERNS = (
     r"任务完成", r"任务已完成", r"群聊规则", r"控制在4-60字", r"符合群聊规则",
     r"自然收尾", r"没有制造额外任务", r"消息已发送", r"纯闲聊回复", r"\[SILENT\]",
     r"输出\s*\[SILENT\]", r"围绕.+?话题", r"保持沉默", r"摘要[:：]?", r"总结[:：]?",
-    r"already\s+completed", r"done\.", r"as\s+.+response", r"completed\."
+    r"already\s+completed", r"done\.", r"as\s+.+response", r"completed\.",
+    r"^以.+身份", r"^作为.+参与", r"等待同事接话", r"开了\d+条消息"
 )
 ERROR_REPLY_PATTERNS = (
     r"Traceback \(most recent call last\)",
@@ -96,6 +97,24 @@ ERROR_REPLY_PATTERNS = (
     r"Permission denied",
     r"Exception:",
     r"RuntimeError:",
+)
+NON_CHAT_REPLY_PATTERNS = (
+    r"^\s*┊\s*review diff",
+    r"^\s*review diff",
+    r"Reached maximum iterations",
+    r"Complete(?:d)? patch",
+    r"老板可以打开链接",
+    r"DevTools",
+    r"^diff --git\b",
+    r"^@@\s",
+    r"^\+\+\+ ",
+    r"^--- ",
+    r"\ba/[^\s]+\s*→\s*b/[^\s]+",
+    r"完整 patch",
+    r"^以.+身份",
+    r"^作为.+参与",
+    r"等待同事接话",
+    r"开了\d+条消息",
 )
 DEFAULT_COMPANY_STATE = {
     "version": 1,
@@ -1193,6 +1212,26 @@ def is_error_reply(text):
     return any(re.search(pattern, raw, flags=re.I) for pattern in ERROR_REPLY_PATTERNS)
 
 
+def is_non_chat_reply(text):
+    raw = str(text or "").strip()
+    if not raw:
+        return False
+    if is_error_reply(raw):
+        return True
+    return any(re.search(pattern, raw, flags=re.I | re.M) for pattern in NON_CHAT_REPLY_PATTERNS)
+
+
+def sanitize_chat_reply(reply, mode="private"):
+    raw = str(reply or "").strip()
+    if not raw:
+        return None
+    if mode == "group" and is_non_chat_reply(raw):
+        return None
+    if mode == "private" and is_error_reply(raw):
+        return None
+    return raw
+
+
 def log_runtime_error(context, exc):
     try:
         ERROR_LOG_PATH.write_text(
@@ -1427,7 +1466,7 @@ def choose_speakers(text, exclude=(), limit=2):
 def extract_chat_lines(reply):
     if not reply:
         return []
-    if is_error_reply(reply):
+    if is_non_chat_reply(reply):
         return []
     marked = re.findall(r"\[CHAT\]\s*(.*?)(?=\s*\[CHAT\]|$)", str(reply), flags=re.S)
     if marked:
@@ -1566,9 +1605,7 @@ def fast_state():
         conversation = group_match.group(2) if group_match else None
         round_no = int(group_match.group(3) or 1) if group_match else None
         prompt = extract_group_topic(body) if mode == "group" else body.split("老板说：", 1)[-1].split("\n\n", 1)[0].strip()
-        reply = task.get("result")
-        if is_error_reply(reply):
-            reply = None
+        reply = sanitize_chat_reply(task.get("result"), mode)
         chat_lines = extract_chat_lines(reply) if mode == "group" else []
         messages.append({
             "id": task["id"], "agent": task.get("assignee", "default"), "prompt": prompt,
@@ -1645,19 +1682,18 @@ def project_delivery_messages(tasks):
                 f"{str(result).strip()}\n\n"
                 "刷新像素公司页面后查看效果；如果不满意，直接回我下一轮修改点。"
             )
-        group_line = re.sub(r"\s+", " ", str(reply).replace("[CHAT]", "")).strip()[:90] if group_id else ""
         notices.append({
             "id": f"notice-{task.get('id')}",
             "agent": assignee,
             "prompt": prompt,
-            "reply": f"[CHAT] {group_line}" if group_id else reply,
+            "reply": reply,
             "status": "done",
             "created": task.get("completed_at") or task.get("created_at") or int(time.time()),
-            "mode": "group" if group_id else "private",
-            "conversation": group_id,
+            "mode": "private",
+            "conversation": None,
             "round": None,
             "origin": "system",
-            "chat_lines": [group_line] if group_id else [],
+            "chat_lines": [],
             "name": PROFILES.get(assignee, PROFILES["default"])["name"],
             "notice": "delivery" if status == "done" else "blocked",
             "task_id": task.get("id"),
@@ -1926,6 +1962,7 @@ def get_state():
                     task["status"] = "done"
                 except Exception:
                     pass
+        reply = sanitize_chat_reply(reply, mode)
         messages.append({
             "id": task["id"], "agent": task.get("assignee", "default"), "prompt": prompt,
             "reply": reply, "status": task.get("status"),
