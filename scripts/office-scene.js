@@ -87,7 +87,14 @@ function frame(t) {
   if (currentRoom === "office" && !neighborhood) reportWorldObjects(t, w2, h2);
   requestAnimationFrame(frame);
 }
-requestAnimationFrame(frame);
+function startOfficeScene() {
+  if (window.__hermesOfficeSceneStarted) return;
+  window.__hermesOfficeSceneStarted = true;
+  requestAnimationFrame(frame);
+}
+if (window.HermesShared && window.HermesShared.ready.core) startOfficeScene();
+else if (window.HermesShared) window.HermesShared.onReady("core", startOfficeScene);
+else startOfficeScene();
 function activityText(a) {
   if (a.presence === "home" || a.presence === "home_remote") return activityLabel(homeActivity(a));
   if (a.presence === "overtime") return "申请加班中";

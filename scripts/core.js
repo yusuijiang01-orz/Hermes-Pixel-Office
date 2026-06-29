@@ -1,4 +1,4 @@
-window.__hermesBootAlive = "core";
+window.HermesShared == null ? void 0 : window.HermesShared.markBoot("core");
 const canvas = document.querySelector("#office"), ctx = canvas.getContext("2d");
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", async () => {
@@ -24,9 +24,6 @@ const seenFeedKeys = /* @__PURE__ */ new Set(), feedQueue = [];
 const mobileState = { tab: "messages", messageFilter: "all", contactKind: "friends", chatOpen: false, chatMode: "private", agent: null, conversation: "team" };
 const scrollState = { desktop: { key: "", stick: true, top: 0 }, mobile: { key: "", stick: true, top: 0 } };
 const mentionState = { desktop: { query: "", start: -1, end: -1 }, mobile: { query: "", start: -1, end: -1 } };
-function isMobileView() {
-  return innerWidth <= 700;
-}
 function esc(value) {
   return String(value != null ? value : "").replace(/[&<>"']/g, (ch) => ({
     "&": "&amp;",
@@ -1925,3 +1922,4 @@ function updateRoomUI() {
     else if (currentRoom === "boss") b.classList.remove("active");
   });
 }
+window.HermesShared == null ? void 0 : window.HermesShared.signalReady("core");

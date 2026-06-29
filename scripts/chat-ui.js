@@ -48,9 +48,6 @@ function syncFeed(feed) {
     keys.slice(-180).forEach((key) => seenFeedKeys.add(key));
   }
 }
-function isMobileView() {
-  return innerWidth <= 700;
-}
 function avatarMarkup(id, label, size = "small") {
   return `<div class="mobile-avatar ${size}">${esc(label || (id || "?").slice(0, 1).toUpperCase())}</div>`;
 }
