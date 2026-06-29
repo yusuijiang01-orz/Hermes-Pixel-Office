@@ -218,6 +218,13 @@ AUTO_CHAT_TOPICS = {
 }
 
 
+CHAT_TASK_PREFIXES = ("[老板消息]", "[老板私聊]", "[老板群聊:", "[内部群聊:")
+VISIBLE_CHAT_TASK_STATUSES = {"todo", "ready", "review", "running", "blocked", "done", "completed"}
+ACTIONABLE_TASK_STATUSES = {"todo", "ready", "review", "running", "blocked"}
+BACKGROUND_TASK_PREFIXES = ("[Universe Deposit]",)
+INTERNAL_CHAT_REPEAT_WINDOW = 12 * 3600
+
+
 def get_world_state():
     now = datetime.now()
     minutes = now.hour * 60 + now.minute
@@ -1161,6 +1168,18 @@ def recover_log_reply(board_slug, task_id):
     return reply if len(reply) >= 4 else None
 
 
+def _cached_recover_log_reply(board_slug, task_id):
+    now = time.time()
+    with _STATE_CACHE_LOCK:
+        entry = _LOG_CACHE.get((board_slug, task_id))
+        if entry and (now - entry[1]) < _LOG_CACHE_TTL:
+            return entry[0]
+    result = recover_log_reply(board_slug, task_id)
+    with _STATE_CACHE_LOCK:
+        _LOG_CACHE[(board_slug, task_id)] = (result, now)
+    return result
+
+
 def run_hermes(*args, timeout=25):
     result = subprocess.run(
         [str(HERMES), *args], capture_output=True, text=True,
@@ -1183,6 +1202,52 @@ def current_board_slug():
     if not active:
         active = next((b for b in reversed(boards) if not b.get("archived") and b.get("total", 0)), boards[0] if boards else None)
     return active["slug"] if active else "default"
+
+
+def is_background_task(task):
+    title = str((task or {}).get("title", "") or "")
+    return title.startswith(BACKGROUND_TASK_PREFIXES)
+
+
+def visible_chat_tasks(tasks):
+    filtered = [
+        task for task in tasks or []
+        if str(task.get("title", "")).startswith(CHAT_TASK_PREFIXES)
+        and task.get("status") in VISIBLE_CHAT_TASK_STATUSES
+        and not is_diagnostic_chat_task(task)
+    ]
+    deduped = []
+    seen_internal = set()
+    for task in reversed(filtered):
+        title = str(task.get("title", "") or "")
+        if title.startswith("[内部群聊:"):
+            prompt = extract_group_topic(task.get("body", ""))
+            key = (task.get("assignee"), prompt)
+            if prompt and key in seen_internal:
+                continue
+            if prompt:
+                seen_internal.add(key)
+        deduped.append(task)
+    deduped.reverse()
+    return deduped
+
+
+def actionable_agent_tasks(tasks, assignee):
+    return [
+        task for task in tasks or []
+        if task.get("assignee") == assignee
+        and task.get("status") in ACTIONABLE_TASK_STATUSES
+        and not is_background_task(task)
+    ]
+
+
+def select_agent_focus_task(tasks, assignee):
+    own = actionable_agent_tasks(tasks, assignee)
+    running = next((task for task in reversed(own) if task.get("status") == "running"), None)
+    ready = next((task for task in reversed(own) if task.get("status") in ("ready", "todo", "review")), None)
+    blocked = next((task for task in reversed(own) if task.get("status") == "blocked"), None)
+    task = running or ready or blocked
+    return task, running, ready, blocked
 
 
 def queue_dispatch(board_slug, max_agents="4", failure_limit="5"):
@@ -1328,14 +1393,34 @@ def extract_chat_lines(reply):
     return lines[:4]
 
 
-def _cached_task_reply(board_slug, task_id):
+def recent_internal_topics(tasks, now_ts, window=INTERNAL_CHAT_REPEAT_WINDOW):
+    topics = set()
+    cutoff = now_ts - window
+    for task in tasks or []:
+        title = str(task.get("title", "") or "")
+        if not title.startswith("[内部群聊:"):
+            continue
+        created = int(task.get("created_at") or 0)
+        completed = int(task.get("completed_at") or 0)
+        if max(created, completed) < cutoff:
+            continue
+        topic = extract_group_topic(task.get("body", ""))
+        if topic:
+            topics.add(topic)
+    return topics
+
+
+def _cached_task_reply(board_slug, task):
     """Cached wrapper around get_task_reply to avoid repeated subprocess calls."""
+    if not task or not task.get("id"):
+        return None
+    task_id = task["id"]
     now = time.time()
     with _STATE_CACHE_LOCK:
         entry = _TASK_REPLY_CACHE.get((board_slug, task_id))
         if entry and (now - entry[1]) < _TASK_REPLY_TTL:
             return entry[0]
-    result = _raw_task_reply(board_slug, task_id)
+    result = _raw_task_reply(board_slug, task)
     with _STATE_CACHE_LOCK:
         _TASK_REPLY_CACHE[(board_slug, task_id)] = (result, now)
     return result
@@ -1385,14 +1470,10 @@ def fast_state():
         tasks = json_command("kanban", "--board", board_slug, "list", "--json") or []
     agents = []
     for key, info in PROFILES.items():
-        own = [task for task in tasks if task.get("assignee") == key]
-        running = next((task for task in reversed(own) if task.get("status") == "running"), None)
-        blocked = next((task for task in reversed(own) if task.get("status") == "blocked"), None)
-        ready = next((task for task in reversed(own) if task.get("status") in ("ready", "todo", "review")), None)
-        task = running or blocked or ready
+        task, running, ready, blocked = select_agent_focus_task(tasks, key)
         status = "working" if running else "blocked" if blocked else "waiting" if ready else "idle"
         title = task["title"] if task else "暂无待办，保持待命"
-        owner_chat = title.startswith(("[老板私聊]", "[老板群聊:", "[内部群聊:", "[老板消息]"))
+        owner_chat = title.startswith(CHAT_TASK_PREFIXES)
         presence = employee_presence_for(world, status, owner_chat=owner_chat, blocked=bool(blocked))
         social = (company_state.get("employees") or {}).get(key, {})
         agents.append({
@@ -1419,7 +1500,7 @@ def fast_state():
         })
     messages, team_feed = [], []
     chat_tasks = sorted(
-        [task for task in tasks if task.get("title", "").startswith(("[老板消息]", "[老板私聊]", "[老板群聊:", "[内部群聊:")) and not is_diagnostic_chat_task(task)],
+        visible_chat_tasks(tasks),
         key=lambda task: task.get("created_at") or 0,
     )[-180:]
     for task in chat_tasks:
@@ -1617,7 +1698,11 @@ def maybe_spawn_internal_chat(board_slug, tasks, company_state, world):
         roster = list(PROFILES)
         seed = max(1, current_ts // cooldown)
         initiator = roster[seed % len(roster)]
-        topic = internal_topic_for(initiator, world)
+        recent_topics = recent_internal_topics(tasks, current_ts)
+        options = AUTO_CHAT_TOPICS.get("lunch" if world.get("phase") == "lunch" else "work", {}).get(initiator) or AUTO_CHAT_TOPICS["work"]["default"]
+        topic = next((item for item in options if item not in recent_topics), internal_topic_for(initiator, world))
+        if topic in recent_topics:
+            return False
         group_id = format(current_ts * 1000 + seed, "x")[-8:]
         return bool(create_group_round(
             board_slug, group_id, 1, [initiator], topic, "", company_state,
@@ -1726,15 +1811,11 @@ def get_state():
             pass
     agents = []
     for key, info in PROFILES.items():
-        own = [task for task in tasks if task.get("assignee") == key]
-        running = next((task for task in reversed(own) if task.get("status") == "running"), None)
-        blocked = next((task for task in reversed(own) if task.get("status") == "blocked"), None)
-        ready = next((task for task in reversed(own) if task.get("status") in ("ready", "todo", "review")), None)
-        task = running or blocked or ready
+        task, running, ready, blocked = select_agent_focus_task(tasks, key)
         is_meeting = running and (running.get("title", "").startswith(("[老板群聊:", "[内部群聊:")) or running.get("title", "").startswith("Team huddle decision"))
         status = "meeting" if is_meeting else "working" if running else "blocked" if blocked else "waiting" if ready else "idle"
         title = task["title"] if task else "暂无待办，保持待命"
-        owner_chat = title.startswith(("[老板私聊]", "[老板群聊:", "[内部群聊:", "[老板消息]"))
+        owner_chat = title.startswith(CHAT_TASK_PREFIXES)
         presence = employee_presence_for(world, status, owner_chat=owner_chat, blocked=bool(blocked))
         social = (company_state.get("employees") or {}).get(key, {})
         social_lines = [
@@ -1765,7 +1846,7 @@ def get_state():
 
     messages = []
     chat_tasks = sorted(
-        [t for t in tasks if t.get("title", "").startswith(("[老板消息]", "[老板私聊]", "[老板群聊:", "[内部群聊:")) and not is_diagnostic_chat_task(t)],
+        visible_chat_tasks(tasks),
         key=lambda task: task.get("created_at") or 0,
     )[-180:]
     for task in chat_tasks:
