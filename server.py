@@ -1829,6 +1829,13 @@ def strip_project_title(title):
     return clean or "项目执行任务"
 
 
+def project_notice_key(task):
+    title = strip_project_title(task.get("title", ""))
+    normalized = re.sub(r"\s+", "", title.lower())
+    normalized = re.sub(r"[“”\"'`‘’\[\]（）()，,。.!！？?：:;；\-_/\\]+", "", normalized)
+    return normalized[:40] or title[:24] or "project"
+
+
 def summarize_project_collaboration(board_slug, task, tasks):
     task_id = task.get("id")
     if not task_id:
@@ -1884,6 +1891,24 @@ def project_delivery_messages(board_slug, tasks):
         and task.get("status") in ("done", "blocked")
         and is_meaningful_project_task(task)
     ][-20:]
+    latest_by_key = {}
+    for task in project_tasks:
+        key = project_notice_key(task)
+        existing = latest_by_key.get(key)
+        task_ts = task.get("completed_at") or task.get("created_at") or 0
+        existing_ts = (existing or {}).get("completed_at") or (existing or {}).get("created_at") or 0
+        if not existing or task_ts >= existing_ts:
+            latest_by_key[key] = task
+    project_tasks = sorted(
+        latest_by_key.values(),
+        key=lambda task: task.get("completed_at") or task.get("created_at") or 0,
+    )
+    blocked_tasks = [task for task in project_tasks if task.get("status") == "blocked"][-4:]
+    done_tasks = [task for task in project_tasks if task.get("status") == "done"][-4:]
+    project_tasks = sorted(
+        blocked_tasks + done_tasks,
+        key=lambda task: task.get("completed_at") or task.get("created_at") or 0,
+    )
     for task in project_tasks:
         status = task.get("status")
         assignee = task.get("assignee") or "default"
