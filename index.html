@@ -342,7 +342,8 @@ const fallbackMentions=[
   {id:'researcher',short:'小研',name:'研究员 小研',role:'玩法研究'},
   {id:'writer',short:'小文',name:'文案 小文',role:'叙事与文案'}
 ];
-let pendingMessages=[],refreshTimer=0,fastRefreshUntil=0,realtimeSource=null,realtimeConnected=false,realtimeRetryTimer=0;
+let pendingMessages=[],refreshTimer=0,fastRefreshUntil=0,realtimeSource=null,realtimeConnected=false,realtimeRetryTimer=0,worldBaseMs=0,worldReceivedMs=0;
+const sendLocks=new Set();
 let _lastRenderVersion=0,_prevPrivateHash='',_prevGroupHash='',_renderedChatMode='';
 const attachmentDrafts={desktop:[],mobile:[]};
 let stickerStore=[];
@@ -1579,6 +1580,26 @@ document.querySelectorAll('[data-home]').forEach(button=>button.addEventListener
 document.querySelectorAll('[data-home]').forEach(button=>button.classList.toggle('active',button.dataset.home===homeView));
 document.querySelector('#sheetToggle').addEventListener('click',()=>{const panel=document.querySelector('aside'),closed=panel.classList.toggle('collapsed');document.querySelector('#sheetToggle').textContent=closed?'⌃':'⌄'});
 function msgTime(ts){if(!ts)return'';return new Date(ts*1000).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}
+function currentWorldDate(){
+  if(worldBaseMs&&worldReceivedMs)return new Date(worldBaseMs+(Date.now()-worldReceivedMs));
+  const iso=state?.world?.iso;
+  const parsed=iso?Date.parse(iso):NaN;
+  return Number.isFinite(parsed)?new Date(parsed):new Date();
+}
+function worldClockText(withSeconds=false){
+  return currentWorldDate().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',second:withSeconds?'2-digit':undefined});
+}
+function updateWorldClockUi(){
+  if(!state?.world)return;
+  const clock=worldClockText(true);
+  const worldEl=document.querySelector('#world');
+  if(worldEl)worldEl.textContent=`${clock} · ${state.world.weather||''} · ${state.world.label||''}`;
+  const mobileClock=document.querySelector('#mobileClock');
+  if(mobileClock)mobileClock.textContent=clock;
+  const summary=document.querySelector('#mobileCompanySummary');
+  if(summary)summary.textContent=`${state.company?.studio_name||'Hermes Pixel Works'} 正在推进「${state.board?.name||'暂无项目'}」，当前为 ${clock} · ${state.world.next||'等待下一阶段'}`
+}
+setInterval(updateWorldClockUi,1000);
 function syncFeed(feed){
   const items=(feed||[]).slice().sort((a,b)=>(a.created||0)-(b.created||0));
   if(!items.length)return;
@@ -1679,7 +1700,7 @@ function renderMobileMessages(){
   document.querySelector('#mobileMessageTabs').querySelectorAll('button').forEach(button=>button.classList.toggle('active',button.dataset.filter===mobileState.messageFilter));
   document.querySelector('#mobileProjectChip').textContent=state?.board?.name||'当前项目';
   document.querySelector('#mobileOnlineChip').textContent=`${(state?.agents||[]).length} 人在线`;
-  document.querySelector('#mobileClock').textContent=state?.world?.clock||new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
+  document.querySelector('#mobileClock').textContent=state?.world?worldClockText(true):new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
   document.querySelector('#mobileStatus').textContent=`${state?.world?.label||'在线'} · ${(state?.world?.weather||'办公室')}`;
   const unread=(state?.agents||[]).filter(agent=>agent.status==='blocked').length+((state?.team_feed||[]).length?1:0);
   document.querySelector('#mobileMsgBadge').textContent=String(Math.min(99,Math.max(1,unread)));
@@ -1713,7 +1734,7 @@ function renderMobileCompany(){
   document.querySelector('#mobileWorldLabel').textContent=state?.world?.label||'读取中';
   document.querySelector('#mobileWeatherChip').textContent=state?.world?.weather||'天气';
   document.querySelector('#mobileCompanyBadge').textContent=String(Math.max(1,notices.length+roles.length));
-  document.querySelector('#mobileCompanySummary').textContent=`${company.studio_name||'Hermes Pixel Works'} 正在推进「${state?.board?.name||'暂无项目'}」，当前为 ${state?.world?.clock||'--:--'} · ${state?.world?.next||'等待下一阶段'}`;
+  document.querySelector('#mobileCompanySummary').textContent=`${company.studio_name||'Hermes Pixel Works'} 正在推进「${state?.board?.name||'暂无项目'}」，当前为 ${state?.world?worldClockText(true):'--:--'} · ${state?.world?.next||'等待下一阶段'}`;
   document.querySelector('#mobileNotices').innerHTML=[...notices,...roles.map(role=>`开放岗位：${role}`)].map(item=>`<li>${esc(item)}</li>`).join('')||'<li>暂无招聘通知，工位保持满编。</li>';
   document.querySelector('#mobileRelations').innerHTML=relations.map(item=>`<li>${esc(item)}</li>`).join('')
 }
@@ -1755,33 +1776,25 @@ function renderMobileChatScreen(){
     groups.get(key).push(msg);
   });
   if(!groups.size){body.innerHTML='<div class="empty">群里还很安静。<br>发个话题试试。</div>';return}
-  // Incremental per-conversation
   const existingConv=new Set([...body.querySelectorAll('.conv-group[data-conv-id]')].map(el=>el.dataset.convId));
   const wantedConv=new Set([...groups.keys()]);
   [...existingConv].forEach(k=>{if(!wantedConv.has(k)){const el=body.querySelector(`.conv-group[data-conv-id="${k}"]`);if(el)el.remove()}});
   [...groups.entries()].forEach(([key,msgs])=>{
-    let container=body.querySelector(`.conv-group[data-conv-id="${key}"]`);
-    if(!container){container=document.createElement('div');container.className='conv-group';container.dataset.convId=key;body.appendChild(container)}
-    msgs.sort((a,b)=>(a.created||0)-(b.created||0)||(a.round||1)-(b.round||1));
-    const existingBubble=new Set([...container.querySelectorAll('.msg-wrapper[data-msg-id]')].map(el=>el.dataset.msgId));
-    const wantedBubble=new Set(msgs.map(m=>String(m.id)));
-    [...existingBubble].forEach(id=>{if(!wantedBubble.has(id)){const el=container.querySelector(`.msg-wrapper[data-msg-id="${id}"]`);if(el)el.remove()}});
-    msgs.forEach(m=>{
-      let wrapper=container.querySelector(`.msg-wrapper[data-msg-id="${m.id}"]`);
-      if(!wrapper){wrapper=document.createElement('div');wrapper.className='msg-wrapper';wrapper.dataset.msgId=m.id;container.appendChild(wrapper)}
-      const speaker=(m.name||'员工').split(' ').slice(-1)[0],cl=validChatLines(m);
-      if(m.origin==='boss'&&m.mode==='group'){
-        wrapper.innerHTML=`<div class="bubble mine">${messageTextHtml(m.prompt,m.attachments)}<span class="bubble-time">${msgTime(m.created)}</span></div>`;
-      }else if(cl.length){
-        wrapper.innerHTML=cl.map(line=>`<div class="bubble theirs" data-reply="${esc(speaker)}"><span class="bubble-name">${esc(speaker)}<span class="bubble-time">${msgTime(m.created)}</span></span>${esc(line)}</div>`).join('');
-      }else if(m.prompt){
-        wrapper.innerHTML=`<div class="bubble theirs" data-reply="${esc(speaker)}"><span class="bubble-name">${esc(speaker)}<span class="bubble-time">${msgTime(m.created)}</span></span>${esc(compactText(m.prompt,220))}</div>`;
-      }else if(m.status==='done'||m.status==='archived'){
-        wrapper.remove();
-      }else{
-        wrapper.remove();
-      }
-    });
+      let container=body.querySelector(`.conv-group[data-conv-id="${key}"]`);
+      if(!container){container=document.createElement('div');container.className='conv-group';container.dataset.convId=key;body.appendChild(container)}
+      msgs.sort((a,b)=>(a.created||0)-(b.created||0)||(a.round||1)-(b.round||1));
+      const boss=msgs.find(m=>m.origin==='boss'&&m.prompt)||msgs.find(m=>m.prompt);
+      const html=[];
+      if(boss)html.push(`<div class="msg-wrapper" data-msg-id="boss-${esc(key)}"><div class="bubble mine">${messageTextHtml(boss.prompt,boss.attachments)}<span class="bubble-time">${msgTime(boss.created)}</span></div></div>`);
+      msgs.forEach(m=>{
+        const speaker=(m.name||'员工').split(' ').slice(-1)[0],cl=validChatLines(m);
+        if(cl.length){
+          html.push(`<div class="msg-wrapper" data-msg-id="${esc(m.id)}">${cl.map(line=>`<div class="bubble theirs" data-reply="${esc(speaker)}"><span class="bubble-name">${esc(speaker)}<span class="bubble-time">${msgTime(m.completed||m.created)}</span></span>${esc(line)}</div>`).join('')}</div>`);
+        }else if(!m._local&&m.status!=='done'&&m.status!=='archived'){
+          html.push(`<div class="msg-wrapper" data-msg-id="${esc(m.id)}"><div class="bubble theirs pending" data-reply="${esc(speaker)}"><span class="bubble-name">${esc(speaker)}</span>正在处理...</div></div>`);
+        }
+      });
+      container.innerHTML=html.join('');
   });
 }
 function renderMobileShell(){
@@ -1998,7 +2011,6 @@ function renderChat(){
     const items=all.filter(m=>m.mode==='group'),groups=new Map;
     items.forEach(m=>{if(!groups.has(m.conversation))groups.set(m.conversation,[]);groups.get(m.conversation).push(m)});
     if(!groups.size){box.innerHTML='<div class="empty">群里还很安静。<br>发个话题，成员会接话、追问或互相讨论。</div>';_prevGroupHash=hash;_renderedChatMode='group';_lastRenderVersion++;return}
-    // Incremental per-conversation
     const existingConv=new Set([...box.querySelectorAll('.conv-group[data-conv-id]')].map(el=>el.dataset.convId));
     const wantedConv=new Set([...groups.keys()]);
     [...existingConv].forEach(k=>{if(!wantedConv.has(k)){const el=box.querySelector(`.conv-group[data-conv-id="${k}"]`);if(el)el.remove()}});
@@ -2009,31 +2021,18 @@ function renderChat(){
         box.appendChild(container);
       }
       msgs.sort((a,b)=>(a.created||0)-(b.created||0)||(a.round||1)-(b.round||1));
-      // Track existing bubbles in this container
-      const existingBubble=new Set([...container.querySelectorAll('.msg-wrapper[data-msg-id]')].map(el=>el.dataset.msgId));
-      const wantedBubble=new Set(msgs.map(m=>String(m.id)));
-      // Remove deleted
-      [...existingBubble].forEach(id=>{if(!wantedBubble.has(id)){const el=container.querySelector(`.msg-wrapper[data-msg-id="${id}"]`);if(el)el.remove()}});
-      // Add/update
+      const boss=msgs.find(m=>m.origin==='boss'&&m.prompt)||msgs.find(m=>m.prompt);
+      const html=[];
+      if(boss)html.push(`<div class="msg-wrapper" data-msg-id="boss-${esc(conv)}"><div class="bubble mine">${messageTextHtml(boss.prompt,boss.attachments)}<span class="bubble-time">${msgTime(boss.created)}</span></div></div>`);
       msgs.forEach(m=>{
-        let wrapper=container.querySelector(`.msg-wrapper[data-msg-id="${m.id}"]`);
-        if(!wrapper){
-          wrapper=document.createElement('div');wrapper.className='msg-wrapper';wrapper.dataset.msgId=m.id;
-          container.appendChild(wrapper);
-        }
         const short=(m.name||'员工').split(' ').slice(-1)[0],cl=validChatLines(m);
-        if(m.origin==='boss'&&m.mode==='group'){
-          wrapper.innerHTML=`<div class="bubble mine">${messageTextHtml(m.prompt,m.attachments)}<span class="bubble-time">${msgTime(m.created)}</span></div>`;
-        }else if(cl.length){
-          wrapper.innerHTML=cl.map(line=>`<div class="bubble theirs" data-reply="${esc(short)}"><span class="bubble-name">${esc(short)}<span class="bubble-time">${msgTime(m.created)}</span></span>${esc(line)}</div>`).join('');
-        }else if(m.prompt){
-          wrapper.innerHTML=`<div class="bubble theirs" data-reply="${esc(short)}"><span class="bubble-name">${esc(short)}<span class="bubble-time">${msgTime(m.created)}</span></span>${esc(compactText(m.prompt,220))}</div>`;
-        }else if(m.status==='done'||m.status==='archived'){
-          wrapper.remove();
-        }else{
-          wrapper.remove();
+        if(cl.length){
+          html.push(`<div class="msg-wrapper" data-msg-id="${esc(m.id)}">${cl.map(line=>`<div class="bubble theirs" data-reply="${esc(short)}"><span class="bubble-name">${esc(short)}<span class="bubble-time">${msgTime(m.completed||m.created)}</span></span>${esc(line)}</div>`).join('')}</div>`);
+        }else if(!m._local&&m.status!=='done'&&m.status!=='archived'){
+          html.push(`<div class="msg-wrapper" data-msg-id="${esc(m.id)}"><div class="bubble theirs pending" data-reply="${esc(short)}"><span class="bubble-name">${esc(short)}</span>正在处理...</div></div>`);
         }
       });
+      container.innerHTML=html.join('');
     });
     _prevGroupHash=hash;
     _renderedChatMode='group';
@@ -2220,10 +2219,14 @@ function applyServerState(data,source='poll'){
   if(data.error)throw Error(data.error);
   if(!_loadingCleared){_loadingCleared=true;window._corgiLoadingDone?.()}
   state=data;
+  if(data.world?.iso){
+    const parsed=Date.parse(data.world.iso);
+    if(Number.isFinite(parsed)){worldBaseMs=parsed;worldReceivedMs=Date.now()}
+  }
   state.messages=mergePendingMessages(data.messages||[]);
   syncFeed(data.team_feed);
   document.querySelector('#sync').textContent=(source==='sse'?'长连接实时 · ':'实时连接 · ')+new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-  document.querySelector('#world').textContent=`${data.world?.clock||''} · ${data.world?.weather||''} · ${data.world?.label||''}`;
+  updateWorldClockUi();
   document.querySelector('#project').textContent='当前项目：'+(data.board?.name||'暂无');
   data.agents.forEach((d,i)=>{
     if(!agents[d.id]){
@@ -2293,6 +2296,9 @@ refresh();
 async function sendChatMessage(inputSelector,mode,agentId){
   const input=document.querySelector(inputSelector),kind=draftKindFromInput(inputSelector),message=input.value.trim(),attachments=draftFor(kind).slice();
   if((!message&&!attachments.length)||(mode==='private'&&!agentId))return;
+  const lockKey=`${inputSelector}:${mode}:${agentId||'group'}`;
+  if(sendLocks.has(lockKey))return;
+  sendLocks.add(lockKey);
   closeMentionMenu(inputSelector==='#mobileChatInput'?'mobile':'desktop');
   closeChatPanels();
   input.value='';
@@ -2337,6 +2343,7 @@ async function sendChatMessage(inputSelector,mode,agentId){
     }
     alert('消息未送达：'+err.message)
   }finally{
+    sendLocks.delete(lockKey);
     input.disabled=false;
     input.focus()
   }
