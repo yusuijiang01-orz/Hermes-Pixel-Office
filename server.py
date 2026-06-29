@@ -2196,6 +2196,28 @@ class Handler(SimpleHTTPRequestHandler):
             return
         super().do_GET()
 
+    def do_HEAD(self):
+        path = urlparse(self.path).path
+        if path == "/login":
+            if self.web_authorized():
+                self.send_response(302)
+                self.send_header("Location", "/")
+            else:
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.end_headers()
+            return
+        api_key_ok = path.startswith("/api/") and self.api_authorized()
+        if web_auth_enabled() and not (self.web_authorized() or api_key_ok):
+            self.reject_unauthorized()
+            return
+        if path.startswith("/api/") and not self.web_authorized() and path not in ("/api/scene/load", "/api/world/objects") and not self.api_authorized():
+            self.send_response(401)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            return
+        super().do_HEAD()
+
     def do_POST(self):
         path = urlparse(self.path).path
         if path == "/api/plugin/login":
