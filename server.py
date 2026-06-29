@@ -1095,8 +1095,16 @@ def verify_auth_cookie(cookie_header):
     return hmac.compare_digest(sig, sign_auth_value(payload))
 
 
-def login_page(error=""):
+def safe_next_path(raw):
+    target = str(raw or "").strip()
+    if not target.startswith("/") or target.startswith("//"):
+        return "/"
+    return target
+
+
+def login_page(error="", next_path="/"):
     error_html = f'<div class="error">{error}</div>' if error else ""
+    next_path = safe_next_path(next_path)
     return f"""<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -1104,29 +1112,51 @@ def login_page(error=""):
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
   <title>Hermes Pixel Works 登录</title>
   <style>
-    *{{box-sizing:border-box}}html,body{{margin:0;min-height:100%;background:#10191d;color:#edf5f0;font-family:"Microsoft YaHei",Arial,sans-serif}}
-    body{{display:grid;place-items:center;padding:24px;background:
-      linear-gradient(180deg,#13232a 0,#10191d 44%,#0b1114 100%)}}
-    .card{{width:min(420px,100%);border:4px solid #314046;background:#f7f1df;color:#1a2528;box-shadow:8px 8px 0 #05090b}}
-    .head{{padding:18px 20px;border-bottom:4px solid #314046;background:#17242a;color:#f7f1df}}
-    h1{{margin:0;font-size:22px;letter-spacing:0}}.brand{{color:#f0c85a}}p{{margin:8px 0 0;color:#9eb5b0;font-size:13px}}
-    form{{display:grid;gap:14px;padding:20px}}label{{display:grid;gap:6px;font-weight:900;color:#334148}}
-    input{{height:46px;border:3px solid #5d6b70;background:#fffdf5;color:#172126;padding:0 12px;font-size:17px;outline:none}}
-    input:focus{{border-color:#d8aa39;box-shadow:0 0 0 3px #f0c85a55}}
-    button{{height:48px;border:3px solid #314046;background:#f0c85a;color:#172126;font-weight:900;font-size:17px;box-shadow:4px 4px 0 #a48b3a}}
+    *{{box-sizing:border-box}}html,body{{margin:0;min-height:100%;color:#edf5f0;font-family:"Microsoft YaHei",Arial,sans-serif}}
+    body{{display:grid;place-items:center;padding:24px;overflow:hidden;background:
+      radial-gradient(circle at top,#30505b 0,#142229 38%,#0b1114 100%)}}
+    body::before{{content:"";position:fixed;inset:0;pointer-events:none;opacity:.18;background-image:
+      linear-gradient(rgba(255,255,255,.08) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(255,255,255,.08) 1px,transparent 1px);background-size:18px 18px}}
+    .skyline{{position:fixed;left:0;right:0;bottom:0;height:34vh;pointer-events:none;opacity:.9;background:
+      linear-gradient(180deg,transparent 0,transparent 46%,#0d1518 46%,#0d1518 100%)}}
+    .skyline::before{{content:"";position:absolute;left:0;right:0;bottom:0;height:72%;background:
+      linear-gradient(90deg,#091013 0 4%,transparent 4% 8%,#091013 8% 15%,transparent 15% 19%,#091013 19% 26%,transparent 26% 31%,#091013 31% 39%,transparent 39% 44%,#091013 44% 53%,transparent 53% 58%,#091013 58% 66%,transparent 66% 71%,#091013 71% 81%,transparent 81% 87%,#091013 87% 100%)}}
+    .skyline::after{{content:"";position:absolute;left:6%;right:6%;bottom:11%;height:26%;background:
+      repeating-linear-gradient(90deg,transparent 0 28px,rgba(240,200,90,.42) 28px 34px,transparent 34px 62px)}}
+    .card{{position:relative;z-index:1;width:min(460px,100%);border:4px solid #314046;background:#f7f1df;color:#1a2528;box-shadow:0 0 0 4px #0b1114,10px 10px 0 #05090b}}
+    .head{{padding:18px 20px 16px;border-bottom:4px solid #314046;background:linear-gradient(180deg,#1c2d34 0,#17242a 100%);color:#f7f1df}}
+    .badge{{display:inline-block;margin-bottom:10px;padding:5px 8px;border:2px solid #f0c85a;background:#26363d;color:#f0c85a;font-size:11px;font-weight:900;letter-spacing:.08em}}
+    h1{{margin:0;font-size:24px;letter-spacing:.02em}}.brand{{color:#f0c85a}}p{{margin:8px 0 0;color:#9eb5b0;font-size:13px;line-height:1.6}}
+    form{{display:grid;gap:14px;padding:20px}}
+    .pixel-strip{{display:grid;grid-template-columns:repeat(10,1fr);gap:4px}}
+    .pixel-strip i{{display:block;height:10px;background:#d6c06f;border:2px solid #314046}}
+    .pixel-strip i:nth-child(2n){{background:#8fcfc2}}
+    .pixel-strip i:nth-child(3n){{background:#e07a5f}}
+    label{{display:grid;gap:6px;font-weight:900;color:#334148}}
+    input{{height:48px;border:3px solid #5d6b70;background:#fffdf5;color:#172126;padding:0 12px;font-size:17px;outline:none;box-shadow:inset 0 -3px 0 #d9d1bb}}
+    input:focus{{border-color:#d8aa39;box-shadow:0 0 0 3px #f0c85a55,inset 0 -3px 0 #d9d1bb}}
+    button{{height:50px;border:3px solid #314046;background:#f0c85a;color:#172126;font-weight:900;font-size:17px;box-shadow:4px 4px 0 #a48b3a}}
+    button:hover{{transform:translate(-1px,-1px);box-shadow:5px 5px 0 #a48b3a}}
     .error{{padding:10px 12px;border:2px solid #b64f45;background:#ffe6de;color:#8f2e25;font-size:13px;font-weight:900}}
     .hint{{font-size:12px;color:#6a777a;line-height:1.6}}
+    .footer{{display:flex;justify-content:space-between;align-items:center;gap:10px;color:#6a777a;font-size:12px}}
+    .footer b{{color:#334148}}
+    @media (max-width:520px){{body{{padding:16px}}h1{{font-size:21px}}input,button{{font-size:16px}}}}
   </style>
 </head>
 <body>
+  <div class="skyline"></div>
   <section class="card">
-    <div class="head"><h1><span class="brand">HERMES</span> PIXEL WORKS</h1><p>登录后会在本设备保持 30 天。</p></div>
+    <div class="head"><div class="badge">PIXEL ACCESS TERMINAL</div><h1><span class="brand">HERMES</span> PIXEL WORKS</h1><p>像进入公司前台一样登录，不再弹浏览器认证窗。登录后会在本设备保持 30 天。</p></div>
     <form method="post" action="/login">
+      <div class="pixel-strip"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
       {error_html}
+      <input type="hidden" name="next" value="{next_path}">
       <label>用户名<input name="username" autocomplete="username" value="{WEB_AUTH_USER or 'admin'}"></label>
       <label>密码<input name="password" type="password" autocomplete="current-password" autofocus></label>
       <button type="submit">进入像素公司</button>
-      <div class="hint">这是 Hermes 自己的网页登录，不再使用浏览器弹窗 Basic Auth。</div>
+      <div class="footer"><span class="hint">这是 Hermes 自己的网页登录。</span><b>COOKIE SESSION</b></div>
     </form>
   </section>
 </body>
@@ -2071,11 +2101,13 @@ class Handler(SimpleHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/login":
             if self.web_authorized():
+                next_target = safe_next_path(parse_qs(urlparse(self.path).query).get("next", ["/"])[0])
                 self.send_response(302)
-                self.send_header("Location", "/")
+                self.send_header("Location", next_target)
                 self.end_headers()
             else:
-                self.send_html(login_page())
+                next_target = safe_next_path(parse_qs(urlparse(self.path).query).get("next", ["/"])[0])
+                self.send_html(login_page(next_path=next_target))
             return
         api_key_ok = path.startswith("/api/") and self.api_authorized()
         if web_auth_enabled() and not (self.web_authorized() or api_key_ok):
@@ -2190,17 +2222,18 @@ class Handler(SimpleHTTPRequestHandler):
                 form = parse_qs(raw)
                 username = (form.get("username") or [""])[0]
                 password = (form.get("password") or [""])[0]
+                next_target = safe_next_path((form.get("next") or ["/"])[0])
                 if hmac.compare_digest(username, WEB_AUTH_USER) and hmac.compare_digest(password, WEB_AUTH_PASSWORD):
                     secure = "; Secure" if self.headers.get("X-Forwarded-Proto", "") == "https" else ""
                     cookie = f"hermes_session={make_auth_cookie()}; Max-Age={WEB_AUTH_MAX_AGE}; Path=/; HttpOnly; SameSite=Lax{secure}"
                     self.send_response(302)
                     self.send_header("Set-Cookie", cookie)
-                    self.send_header("Location", "/")
+                    self.send_header("Location", next_target)
                     self.end_headers()
                 else:
-                    self.send_html(login_page("用户名或密码不对。"), 401)
+                    self.send_html(login_page("用户名或密码不对。", next_target), 401)
             except Exception as exc:
-                self.send_html(login_page(str(exc)), 500)
+                self.send_html(login_page(str(exc), next_target if "next_target" in locals() else "/"), 500)
             return
         api_key_ok = path.startswith("/api/") and self.api_authorized()
         if web_auth_enabled() and not (self.web_authorized() or api_key_ok):

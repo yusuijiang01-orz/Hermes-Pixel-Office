@@ -30,7 +30,7 @@ This creates:
 - `/opt/hermes-pixel-office`
 - `systemd` service: `hermes-pixel-office`
 - Nginx reverse proxy
-- Nginx Basic Auth administrator login
+- Built-in Hermes Pixel Works login page
 - HTTPS certificate through Let's Encrypt when `--domain` is provided
 
 Check logs:
@@ -103,7 +103,7 @@ sudo systemctl reload nginx
 
 Do not expose port `8777` directly to the internet. Keep it bound behind Nginx and firewall it if possible.
 
-Add authentication before long-term public use. This app controls real Hermes agents and project tasks.
+Use the built-in login page before long-term public use. This app controls real Hermes agents and project tasks.
 
 ## Mini Program Notes
 

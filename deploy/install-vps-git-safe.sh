@@ -26,6 +26,7 @@ This variant is designed to avoid disturbing existing panels such as s-ui:
 - does not remove /etc/nginx/sites-enabled/default
 - does not overwrite unrelated nginx sites
 - can deploy directly from a Git repository
+- uses the app's own login page instead of browser Basic Auth popups
 
 Example:
 
@@ -45,8 +46,8 @@ Options:
   --domain            Domain for public access. Strongly recommended.
   --port              Internal app port. Default: 8777.
   --bind-host         Internal bind host. Default: 127.0.0.1.
-  --admin-user        Nginx Basic Auth username. Default: admin.
-  --admin-pass        Nginx Basic Auth password. Prompted if omitted.
+  --admin-user        App login username. Default: admin.
+  --admin-pass        App login password. Prompted if omitted.
   --hermes-exe        Hermes CLI path on VPS. Default: /usr/local/bin/hermes.
   --hermes-home       Hermes data directory. Default: /var/lib/hermes-pixel-office/.hermes.
   --fast-state-only   Set HERMES_FAST_STATE_ONLY (1/0). Default: 1 for low-memory VPS safety.
@@ -112,7 +113,7 @@ fi
 echo "==> Installing system packages"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y python3 git apache2-utils
+apt-get install -y python3 git
 if [[ "${SKIP_NGINX_INSTALL}" != "1" ]]; then
   apt-get install -y nginx
   if [[ -n "${DOMAIN}" && "${NO_SSL}" != "1" ]]; then
@@ -148,6 +149,8 @@ PORT=${PORT}
 HERMES_EXE=${HERMES_EXE}
 HERMES_HOME=${HERMES_HOME}
 HERMES_FAST_STATE_ONLY=${FAST_STATE_ONLY}
+HERMES_WEB_USER=${ADMIN_USER}
+HERMES_WEB_PASSWORD=${ADMIN_PASS}
 EOF
 chmod 640 "/etc/${APP_NAME}.env"
 chown root:"${SERVICE_USER}" "/etc/${APP_NAME}.env"
@@ -176,10 +179,6 @@ EOF
 
 if command -v nginx >/dev/null 2>&1; then
   echo "==> Configuring Nginx site"
-  htpasswd -bc "/etc/nginx/${APP_NAME}.htpasswd" "${ADMIN_USER}" "${ADMIN_PASS}" >/dev/null
-  chmod 640 "/etc/nginx/${APP_NAME}.htpasswd"
-  chown root:www-data "/etc/nginx/${APP_NAME}.htpasswd"
-
   SERVER_NAME="_"
   if [[ -n "${DOMAIN}" ]]; then
     SERVER_NAME="${DOMAIN}"
@@ -191,9 +190,6 @@ server {
     server_name ${SERVER_NAME};
 
     client_max_body_size 20m;
-
-    auth_basic "Hermes Pixel Office";
-    auth_basic_user_file /etc/nginx/${APP_NAME}.htpasswd;
 
     location / {
         proxy_pass http://${BIND_HOST}:${PORT};
