@@ -983,6 +983,22 @@ def project_task_exists(tasks, message, group_id=None):
     return False
 
 
+def is_meaningful_project_task(task):
+    title = strip_project_title(task.get("title", ""))
+    body = str(task.get("body") or "")
+    result = str(task.get("result") or task.get("latest_summary") or "")
+    text = f"{title}\n{body}\n{result}"
+    if is_followup_confirmation_message(title):
+        return False
+    if any(marker in title for marker in ("搞笑", "哈哈", "笑死", "离谱")) and not has_project_context(text):
+        return False
+    if is_project_execution_request(title):
+        return True
+    if has_project_context(text):
+        return True
+    return False
+
+
 def commitment_execution_topic(owner_message, transcript):
     owner_text = re.sub(r"\s+", " ", str(owner_message or "")).strip()
     owner_is_project = is_project_execution_request(owner_message)
@@ -1808,40 +1824,94 @@ def fast_state():
 
 
 def strip_project_title(title):
-    return re.sub(r"^\[项目执行\]\s*", "", str(title or "")).strip() or "项目执行任务"
+    clean = re.sub(r"^\[项目执行\]\s*", "", str(title or "")).strip()
+    clean = clean.split("群聊中已出现执行承诺或交付请求", 1)[0].strip()
+    return clean or "项目执行任务"
 
 
-def project_delivery_messages(tasks):
+def summarize_project_collaboration(board_slug, task, tasks):
+    task_id = task.get("id")
+    if not task_id:
+        return []
+    try:
+        detail = json_command("kanban", "--board", board_slug, "show", task_id, "--json") or {}
+    except Exception:
+        return []
+    lead = task.get("assignee") or "default"
+    snippets = []
+    seen = set()
+
+    def add_snippet(profile, text):
+        clean = re.sub(r"\s+", " ", str(text or "")).strip()
+        if not clean:
+            return
+        clean = re.sub(r"^\[[^\]]+\]\s*", "", clean).strip()
+        clean = clean[:160]
+        key = (profile, clean)
+        if key in seen:
+            return
+        seen.add(key)
+        snippets.append(f"{PROFILES.get(profile, PROFILES['default'])['short']}：{clean}")
+
+    latest_summary = str(detail.get("latest_summary") or "").strip()
+    if latest_summary:
+        add_snippet(lead, latest_summary)
+
+    task_index = {item.get("id"): item for item in tasks or [] if isinstance(item, dict)}
+    for child in (detail.get("children") or [])[:6]:
+        child_info = child
+        if isinstance(child, str):
+            child_info = task_index.get(child, {"id": child})
+        if not isinstance(child_info, dict):
+            continue
+        profile = child_info.get("assignee") or "default"
+        summary = child_info.get("result") or child_info.get("latest_summary") or child_info.get("title") or ""
+        add_snippet(profile, summary)
+
+    for comment in (detail.get("comments") or [])[-8:]:
+        author = comment.get("author") or lead
+        if author not in PROFILES:
+            author = lead
+        add_snippet(author, comment.get("body"))
+    return snippets[:4]
+
+
+def project_delivery_messages(board_slug, tasks):
     notices = []
     project_tasks = [
         task for task in tasks
         if str(task.get("title", "")).startswith("[项目执行]")
         and task.get("status") in ("done", "blocked")
+        and is_meaningful_project_task(task)
     ][-20:]
     for task in project_tasks:
         status = task.get("status")
         assignee = task.get("assignee") or "default"
         title = strip_project_title(task.get("title", ""))
         body = str(task.get("body") or "")
-        group_match = re.search(r"群聊ID：([0-9a-fA-F]+)", body)
-        group_id = group_match.group(1) if group_match else None
         result = (
             task.get("result")
             or task.get("latest_summary")
             or ("遇到阻塞，需要老板决策。" if status == "blocked" else "任务已完成，等待老板验收。")
         )
+        collaboration = summarize_project_collaboration(board_slug, task, tasks)
+        collaboration_text = ""
+        if collaboration:
+            collaboration_text = "\n\n团队协作摘录：\n- " + "\n- ".join(collaboration)
         if status == "blocked":
             prompt = f"需要你拍板：{title}"
             reply = (
                 f"老板，{title} 遇到阻塞了。\n\n"
-                f"{str(result).strip()}\n\n"
+                f"{str(result).strip()}"
+                f"{collaboration_text}\n\n"
                 "你可以直接在私聊里回复取舍，我会继续推进。"
             )
         else:
             prompt = f"项目交付：{title}"
             reply = (
                 f"老板，{title} 已完成，可以验收了。\n\n"
-                f"{str(result).strip()}\n\n"
+                f"{str(result).strip()}"
+                f"{collaboration_text}\n\n"
                 "刷新像素公司页面后查看效果；如果不满意，直接回我下一轮修改点。"
             )
         notices.append({
@@ -2151,7 +2221,7 @@ def get_state():
             speech = lines[0] if lines else ""
             if speech:
                 team_feed.append({"agent": task.get("assignee", "default"), "text": speech, "created": task.get("completed_at") or task.get("created_at")})
-    delivery_notices = project_delivery_messages(tasks)
+    delivery_notices = project_delivery_messages(board_slug, tasks)
     messages.extend(delivery_notices)
     for notice in delivery_notices[-5:]:
         text = "老板，项目已交付，私聊里有验收说明。" if notice.get("notice") == "delivery" else "老板，这个任务卡住了，需要你拍板。"
