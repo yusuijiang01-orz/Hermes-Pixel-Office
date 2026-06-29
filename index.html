@@ -2243,6 +2243,16 @@ function applyServerState(data,source='poll'){
   if(chatMode==='group')setChatMode('group');else if(selected)select(selected,false);else select(latestPrivateAgentId(),false);
   renderMobileShell()
 }
+function redirectToLogin(){
+  const sync=document.querySelector('#sync');
+  if(sync)sync.textContent='登录已过期 · 正在打开登录页';
+  if(realtimeSource){realtimeSource.close();realtimeSource=null}
+  const next=encodeURIComponent(location.pathname+location.search+location.hash);
+  setTimeout(()=>{location.href='/login?next='+next},250);
+}
+function isAuthError(response,data){
+  return response?.status===401||String(data?.error||'').includes('请先登录');
+}
 function connectRealtime(){
   if(!window.EventSource||realtimeSource)return;
   realtimeSource=new EventSource('/api/events');
@@ -2266,7 +2276,18 @@ function connectRealtime(){
     realtimeRetryTimer=setTimeout(connectRealtime,1800)
   })
 }
-async function refresh(){try{const r=await fetch('/api/state',{cache:'no-store'}),data=await r.json();applyServerState(data,'poll');setTimeout(()=>window._corgiLoadingDone?.(),800)}catch(e){document.querySelector('#sync').textContent='连接暂时中断，正在重试'}scheduleRefresh()}
+async function refresh(){
+  try{
+    const r=await fetch('/api/state',{cache:'no-store',credentials:'same-origin'});
+    const data=await r.json();
+    if(isAuthError(r,data)){redirectToLogin();return}
+    applyServerState(data,'poll');
+    setTimeout(()=>window._corgiLoadingDone?.(),800)
+  }catch(e){
+    document.querySelector('#sync').textContent='连接暂时中断，正在重试'
+  }
+  scheduleRefresh()
+}
 connectRealtime();
 refresh();
 async function sendChatMessage(inputSelector,mode,agentId){
@@ -2299,7 +2320,8 @@ async function sendChatMessage(inputSelector,mode,agentId){
   beginFastRefresh();
   scheduleRefresh(80);
   try{
-    const r=await fetch('/api/message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode,agent:agentId,message,attachments,board:state?.board?.slug||'default'})}),data=await r.json();
+    const r=await fetch('/api/message',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({mode,agent:agentId,message,attachments,board:state?.board?.slug||'default'})}),data=await r.json();
+    if(isAuthError(r,data)){redirectToLogin();return}
     if(!r.ok)throw Error(data.error);
     pendingMessages=pendingMessages.filter(item=>item.id!==tempId);
     if(mode==='group')mobileState.conversation='team';

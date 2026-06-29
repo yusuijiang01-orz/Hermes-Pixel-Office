@@ -1,4 +1,4 @@
-const CACHE_NAME = "hermes-iphone-client-20260629-pwa";
+const CACHE_NAME = "hermes-iphone-client-20260629-auth-reconnect";
 const APP_SHELL = [
   "/",
   "/index.html",
