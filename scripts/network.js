@@ -138,6 +138,43 @@ document.querySelector('#gameHub').addEventListener('click',()=>{location.href='
 document.querySelector('#mobileGameHub').addEventListener('click',()=>{location.href='/projects/companyverse/index.html'});
 updateRoomUI();
 
+function reportBootIssue(message){
+  const ls=document.getElementById('loading-screen');
+  const text=ls?.querySelector('.loading-text');
+  if(text)text.textContent=message;
+}
+
+window.addEventListener('error',event=>{
+  const msg=String(event?.error?.message||event?.message||'页面脚本初始化失败');
+  reportBootIssue('加载出错：'+msg);
+});
+
+window.addEventListener('unhandledrejection',event=>{
+  const reason=event?.reason;
+  const msg=String(reason?.message||reason||'页面初始化 Promise 失败');
+  reportBootIssue('加载出错：'+msg);
+});
+
+setTimeout(async()=>{
+  const ls=document.getElementById('loading-screen');
+  if(!ls||ls.style.display==='none'||!ls.classList.contains('visible'))return;
+  const firstTryKey='hermes-force-refresh-once';
+  reportBootIssue('加载超时，正在刷新资源...');
+  if(sessionStorage.getItem(firstTryKey))return;
+  sessionStorage.setItem(firstTryKey,'1');
+  try{
+    if('serviceWorker' in navigator){
+      const regs=await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(reg=>reg.unregister().catch(()=>{})));
+    }
+    if(window.caches?.keys){
+      const keys=await caches.keys();
+      await Promise.all(keys.filter(key=>key.startsWith('hermes-iphone-client-')).map(key=>caches.delete(key).catch(()=>false)));
+    }
+  }catch{}
+  location.replace(location.pathname+location.search+(location.search?'&':'?')+'v=bootfix-20260629');
+},8000);
+
 // === Corgi Yawning Loading Screen ===
 (function(){
   const ls=document.getElementById('loading-screen');

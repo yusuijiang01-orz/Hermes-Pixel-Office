@@ -1,8 +1,15 @@
 ﻿const canvas=document.querySelector('#office'),ctx=canvas.getContext('2d');
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('/iphone-sw.js').then(reg=>{
-    reg.update?.();
-  }).catch(()=>{});
+  window.addEventListener('load',async()=>{
+    try{
+      const regs=await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(reg=>reg.unregister().catch(()=>{})));
+      if(window.caches?.keys){
+        const keys=await caches.keys();
+        await Promise.all(keys.filter(key=>key.startsWith('hermes-iphone-client-')).map(key=>caches.delete(key).catch(()=>false)));
+      }
+    }catch{}
+  },{once:true});
 }
 const roles={default:{color:'#4aa6a0',skin:'#e7b68b',hair:'#27353a'},planner:{color:'#e7b34d',skin:'#efc49d',hair:'#4b302b'},researcher:{color:'#e45a9c',skin:'#c98e69',hair:'#301f35'},writer:{color:'#a878d1',skin:'#efbd9d',hair:'#3b5d50'}};
 const spots={default:[.15,.34],planner:[.57,.34],researcher:[.15,.64],writer:[.57,.64]},agents={};let neighborhood=false;
