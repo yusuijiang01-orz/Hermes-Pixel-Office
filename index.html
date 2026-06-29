@@ -2193,6 +2193,12 @@ function officeSpawnFor(id){
   const size=stableOfficeSize(),spot=spots[id]||[.5,.5];
   return {x:spot[0]*size.w+46,y:spot[1]*size.h+48};
 }
+function latestPrivateAgentId(){
+  const latest=(state?.messages||[])
+    .filter(msg=>msg.mode!=='group'&&msg.agent)
+    .sort((a,b)=>(b.created||0)-(a.created||0))[0];
+  return latest?.agent||'planner'
+}
 function applyServerState(data,source='poll'){
   if(data.error)throw Error(data.error);
   if(!_loadingCleared){_loadingCleared=true;window._corgiLoadingDone?.()}
@@ -2217,7 +2223,7 @@ function applyServerState(data,source='poll'){
     }
     a._spawned=true;
   });
-  if(chatMode==='group')setChatMode('group');else if(selected)select(selected,false);else select('planner',false);
+  if(chatMode==='group')setChatMode('group');else if(selected)select(selected,false);else select(latestPrivateAgentId(),false);
   renderMobileShell()
 }
 function connectRealtime(){

@@ -1023,6 +1023,8 @@ def is_diagnostic_chat_task(task):
     title = task.get("title", "") or ""
     body = task.get("body", "") or ""
     created = task.get("created_at") or 0
+    if title.startswith(("[老板私聊]", "[老板消息]")) and str(task.get("result") or "").strip():
+        return False
     return created >= 1782666000 and ("????:??????" in title or "????????????????" in body)
 
 
