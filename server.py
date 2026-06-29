@@ -89,7 +89,10 @@ ROBOTIC_CHAT_PATTERNS = (
     r"already\s+completed", r"done\.", r"as\s+.+response", r"completed\.",
     r"^以.+身份", r"^作为.+参与", r"^作为.+在内部群聊", r"等待同事接话", r"开了\d+条消息",
     r"^用户没有在规定时间内回应", r"^task complete\.", r"^任务完成。我在群里",
-    r"回复内容已准备好", r"无法实际发送到群聊", r"没有配置消息平台"
+    r"回复内容已准备好", r"无法实际发送到群聊", r"没有配置消息平台",
+    r"output\.txt", r"workspace/output", r"消息已写入", r"已作为任务结果输出",
+    r"already marked as done", r"previous completion was", r"there'?s nothing more to do",
+    r"消息的核心内容是", r"符合.+人设", r"三条\s*\[CHAT\]\s*消息已", r"此前该任务"
 )
 ERROR_REPLY_PATTERNS = (
     r"Traceback \(most recent call last\)",
@@ -124,6 +127,18 @@ NON_CHAT_REPLY_PATTERNS = (
     r"回复内容已准备好",
     r"无法实际发送到群聊",
     r"没有配置消息平台",
+    r"output\.txt",
+    r"workspace/output",
+    r"消息已写入",
+    r"已作为任务结果输出",
+    r"already marked as done",
+    r"previous completion was",
+    r"there'?s nothing more to do",
+    r"消息的核心内容是",
+    r"符合.+人设",
+    r"三条\s*\[CHAT\]\s*消息已",
+    r"此前该任务",
+    r"任务完成.*群里",
 )
 DEFAULT_COMPANY_STATE = {
     "version": 1,
@@ -1297,12 +1312,24 @@ def is_non_chat_reply(text):
     return any(re.search(pattern, raw, flags=re.I | re.M) for pattern in NON_CHAT_REPLY_PATTERNS)
 
 
+def embedded_chat_lines(text):
+    return [
+        re.sub(r"\s+", " ", line).strip()[:180]
+        for line in re.findall(r"\[CHAT\]\s*(.*?)(?=\s*\[CHAT\]|$)", str(text or ""), flags=re.S)
+        if line.strip() and not is_robotic_line(line)
+    ][:4]
+
+
 def sanitize_chat_reply(reply, mode="private"):
     raw = str(reply or "").strip()
     if not raw:
         return None
-    if mode == "group" and is_non_chat_reply(raw):
-        return None
+    if mode == "group":
+        lines = embedded_chat_lines(raw)
+        if lines:
+            return "\n".join(f"[CHAT] {line}" for line in lines)
+        if is_non_chat_reply(raw):
+            return None
     if mode == "private" and is_error_reply(raw):
         return None
     return raw
@@ -1551,13 +1578,9 @@ def extract_chat_lines(reply):
         return []
     if is_non_chat_reply(reply):
         return []
-    marked = re.findall(r"\[CHAT\]\s*(.*?)(?=\s*\[CHAT\]|$)", str(reply), flags=re.S)
+    marked = embedded_chat_lines(reply)
     if marked:
-        return [
-            re.sub(r"\s+", " ", line).strip()[:180]
-            for line in marked
-            if line.strip() and not is_robotic_line(line)
-        ][:4]
+        return marked[:4]
     lines = []
     for raw in str(reply).splitlines():
         line = raw.strip().lstrip("-*• ")
