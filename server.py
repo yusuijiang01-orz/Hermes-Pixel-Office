@@ -1102,6 +1102,13 @@ def safe_next_path(raw):
     return target
 
 
+def with_cache_buster(path_value):
+    target = safe_next_path(path_value)
+    stamp = str(int(time.time()))
+    joiner = "&" if "?" in target else "?"
+    return f"{target}{joiner}v={stamp}"
+
+
 def login_page(error="", next_path="/"):
     error_html = f'<div class="error">{error}</div>' if error else ""
     next_path = safe_next_path(next_path)
@@ -2103,7 +2110,7 @@ class Handler(SimpleHTTPRequestHandler):
             if self.web_authorized():
                 next_target = safe_next_path(parse_qs(urlparse(self.path).query).get("next", ["/"])[0])
                 self.send_response(302)
-                self.send_header("Location", next_target)
+                self.send_header("Location", with_cache_buster(next_target))
                 self.end_headers()
             else:
                 next_target = safe_next_path(parse_qs(urlparse(self.path).query).get("next", ["/"])[0])
@@ -2201,7 +2208,7 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/login":
             if self.web_authorized():
                 self.send_response(302)
-                self.send_header("Location", "/")
+                self.send_header("Location", with_cache_buster("/"))
             else:
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -2250,7 +2257,7 @@ class Handler(SimpleHTTPRequestHandler):
                     cookie = f"hermes_session={make_auth_cookie()}; Max-Age={WEB_AUTH_MAX_AGE}; Path=/; HttpOnly; SameSite=Lax{secure}"
                     self.send_response(302)
                     self.send_header("Set-Cookie", cookie)
-                    self.send_header("Location", next_target)
+                    self.send_header("Location", with_cache_buster(next_target))
                     self.end_headers()
                 else:
                     self.send_html(login_page("用户名或密码不对。", next_target), 401)
