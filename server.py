@@ -1958,6 +1958,41 @@ def project_delivery_messages(board_slug, tasks):
     return notices
 
 
+def visible_project_task_items(tasks, limit=8):
+    items = [
+        {
+            "id": task.get("id"),
+            "title": strip_project_title(task.get("title")),
+            "status": task.get("status"),
+            "assignee": task.get("assignee"),
+            "priority": task.get("priority"),
+            "created": task.get("created_at"),
+            "completed": task.get("completed_at"),
+        }
+        for task in tasks
+        if str(task.get("title", "")).startswith("[项目执行]")
+        and is_meaningful_project_task(task)
+    ]
+    latest_by_key = {}
+    for item in items:
+        key = project_notice_key({"title": f"[项目执行] {item.get('title', '')}"})
+        existing = latest_by_key.get(key)
+        item_ts = item.get("completed") or item.get("created") or 0
+        existing_ts = (existing or {}).get("completed") or (existing or {}).get("created") or 0
+        if not existing or item_ts >= existing_ts:
+            latest_by_key[key] = item
+    items = sorted(
+        latest_by_key.values(),
+        key=lambda item: item.get("completed") or item.get("created") or 0,
+    )
+    blocked = [item for item in items if item.get("status") == "blocked"][-4:]
+    done = [item for item in items if item.get("status") == "done"][-4:]
+    return sorted(
+        blocked + done,
+        key=lambda item: item.get("completed") or item.get("created") or 0,
+    )[-limit:]
+
+
 def group_task_body(group_id, round_no, profile, owner_message, transcript, company_state, final_round=False, origin="boss", initiator=None):
     info = PROFILES[profile]
     initiator_info = PROFILES.get(initiator or profile, info)
@@ -2252,19 +2287,7 @@ def get_state():
         text = "老板，项目已交付，私聊里有验收说明。" if notice.get("notice") == "delivery" else "老板，这个任务卡住了，需要你拍板。"
         team_feed.append({"agent": notice.get("agent", "default"), "text": text, "created": notice.get("created")})
     messages.sort(key=lambda item: item.get("created") or 0)
-    project_tasks = [
-        {
-            "id": task.get("id"),
-            "title": strip_project_title(task.get("title")),
-            "status": task.get("status"),
-            "assignee": task.get("assignee"),
-            "priority": task.get("priority"),
-            "created": task.get("created_at"),
-            "completed": task.get("completed_at"),
-        }
-        for task in tasks
-        if str(task.get("title", "")).startswith("[项目执行]")
-    ][-12:]
+    project_tasks = visible_project_task_items(tasks)
     return {
         "board": active, "agents": agents, "messages": messages, "team_feed": team_feed,
         "world": world, "time": int(time.time()),
