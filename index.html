@@ -3,6 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#18232a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Hermes Pixel">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="/iphone-manifest.json?v=20260629-pwa">
+  <link rel="apple-touch-icon" href="/iphone-icon-180.png?v=20260629-pwa">
   <title>Hermes 像素游戏公司</title>
   <style>
     *{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#15191a;color:#eef3ef;font-family:"Microsoft YaHei",sans-serif;letter-spacing:0}
@@ -308,10 +314,9 @@
 <script>
 const canvas=document.querySelector('#office'),ctx=canvas.getContext('2d');
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.getRegistrations?.().then(regs=>regs.forEach(reg=>reg.update?.())).catch(()=>{});
-}
-if(window.caches){
-  caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('hermes-iphone-client-')||key.startsWith('hermes-pixel-office-')).map(key=>caches.delete(key)))).catch(()=>{});
+  navigator.serviceWorker.register('/iphone-sw.js').then(reg=>{
+    reg.update?.();
+  }).catch(()=>{});
 }
 const roles={default:{color:'#4aa6a0',skin:'#e7b68b',hair:'#27353a'},planner:{color:'#e7b34d',skin:'#efc49d',hair:'#4b302b'},researcher:{color:'#e45a9c',skin:'#c98e69',hair:'#301f35'},writer:{color:'#a878d1',skin:'#efbd9d',hair:'#3b5d50'}};
 const spots={default:[.15,.34],planner:[.57,.34],researcher:[.15,.64],writer:[.57,.64]},agents={};let neighborhood=false;
