@@ -387,10 +387,20 @@ def sanitize_scene_positions(value):
             continue
         if not (math.isfinite(x) and math.isfinite(y)):
             continue
-        cleaned[obj_id] = {
+        entry = {
             "x": max(-1000, min(5000, x)),
             "y": max(-1000, min(5000, y)),
         }
+        try:
+            rx = float(pos.get("rx"))
+            ry = float(pos.get("ry"))
+        except (TypeError, ValueError):
+            rx = None
+            ry = None
+        if rx is not None and ry is not None and math.isfinite(rx) and math.isfinite(ry):
+            entry["rx"] = max(0.0, min(1.0, rx))
+            entry["ry"] = max(0.0, min(1.0, ry))
+        cleaned[obj_id] = entry
     return cleaned
 
 

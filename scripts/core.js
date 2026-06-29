@@ -34,6 +34,7 @@ function esc(value) {
   })[ch]);
 }
 const officeView = { x: 0, y: 0, scale: 1, min: 0.72, max: 1.85, pan: false, lastX: 0, lastY: 0, pinch: false, pinchDist: 0, pinchScale: 1, pinchMid: { x: 0, y: 0 } };
+const LEGACY_SCENE_BASE = { w: 960, h: 720 };
 const fallbackMentions = [
   { id: "default", short: "阿默", name: "制作人 阿默", role: "主程 / 制作人" },
   { id: "planner", short: "小韩", name: "策划主编 小韩", role: "主管 / 游戏策划" },
@@ -1110,6 +1111,42 @@ function defaultScenePositions(w = canvas.clientWidth || 960, h = canvas.clientH
   }
   return defaults;
 }
+function denormalizeScenePosition(pos, obj, w, h) {
+  const maxX = Math.max(0, w - obj.w), maxY = Math.max(0, h - obj.h);
+  const rx = Number(pos == null ? void 0 : pos.rx), ry = Number(pos == null ? void 0 : pos.ry);
+  if (Number.isFinite(rx) && Number.isFinite(ry)) {
+    return {
+      x: Math.min(maxX, Math.max(0, rx * maxX)),
+      y: Math.min(maxY, Math.max(0, ry * maxY))
+    };
+  }
+  const x = Number(pos == null ? void 0 : pos.x), y = Number(pos == null ? void 0 : pos.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  const legacyMaxX = Math.max(0, LEGACY_SCENE_BASE.w - obj.w), legacyMaxY = Math.max(0, LEGACY_SCENE_BASE.h - obj.h);
+  const scaledX = legacyMaxX ? x / legacyMaxX * maxX : x;
+  const scaledY = legacyMaxY ? y / legacyMaxY * maxY : y;
+  return {
+    x: Math.min(maxX, Math.max(0, scaledX)),
+    y: Math.min(maxY, Math.max(0, scaledY))
+  };
+}
+function exportScenePositions(input = scenePositions, w = canvas.clientWidth || 960, h = canvas.clientHeight || 600) {
+  const clean = {};
+  for (const obj of SCENE_OBJECTS) {
+    const pos = input[obj.id];
+    if (!pos) continue;
+    const maxX = Math.max(0, w - obj.w), maxY = Math.max(0, h - obj.h);
+    const x = Math.min(maxX, Math.max(0, Number(pos.x) || 0));
+    const y = Math.min(maxY, Math.max(0, Number(pos.y) || 0));
+    clean[obj.id] = {
+      x,
+      y,
+      rx: maxX ? x / maxX : 0,
+      ry: maxY ? y / maxY : 0
+    };
+  }
+  return clean;
+}
 function sanitizeScenePositions(input, w = canvas.clientWidth || 960, h = canvas.clientHeight || 600) {
   const safe = defaultScenePositions(w, h);
   if (!input || typeof input !== "object") return safe;
@@ -1117,10 +1154,9 @@ function sanitizeScenePositions(input, w = canvas.clientWidth || 960, h = canvas
   for (const [id, pos] of Object.entries(input)) {
     const obj = known.get(id);
     if (!obj || !pos) continue;
-    const x = Number(pos.x), y = Number(pos.y);
-    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-    const maxX = Math.max(0, w - obj.w), maxY = Math.max(0, h - obj.h);
-    safe[id] = { x: Math.min(maxX, Math.max(0, x)), y: Math.min(maxY, Math.max(0, y)) };
+    const denorm = denormalizeScenePosition(pos, obj, w, h);
+    if (!denorm) continue;
+    safe[id] = denorm;
   }
   return safe;
 }
@@ -1143,7 +1179,7 @@ function loadScenePositions() {
 }
 function saveScenePositionsToStorage() {
   try {
-    localStorage.setItem("hermes-scene-positions", JSON.stringify(sanitizeScenePositions(scenePositions)));
+    localStorage.setItem("hermes-scene-positions", JSON.stringify(exportScenePositions()));
   } catch (e) {
   }
 }
@@ -1308,7 +1344,7 @@ async function persistScenePositions() {
   const resp = await fetch("/api/scene/save", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ scene: clean })
+    body: JSON.stringify({ scene: exportScenePositions(clean) })
   });
   if (!resp.ok) {
     let detail = "";
