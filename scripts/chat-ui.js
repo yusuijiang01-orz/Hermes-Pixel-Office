@@ -421,6 +421,20 @@ function panelFor(kind) {
 function previewFor(kind) {
   return document.querySelector(kind === "mobile" ? "#mobileAttachPreview" : "#attachPreview");
 }
+function inputFor(kind) {
+  return document.querySelector(kind === "mobile" ? "#mobileChatInput" : "#message");
+}
+function stickerToken(name) {
+  return `[${String(name || "表情包").trim() || "表情包"}]`;
+}
+function appendStickerToken(kind, name) {
+  const input = inputFor(kind);
+  if (!input) return;
+  const token = stickerToken(name);
+  const value = input.value || "";
+  input.value = value && !/\s$/.test(value) ? `${value} ${token}` : `${value}${token}`;
+  input.focus();
+}
 function fileToAttachment(file, kind = "file") {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -433,11 +447,11 @@ function fileToAttachment(file, kind = "file") {
   });
 }
 function renderAttachmentPreview(kind) {
-  const box = previewFor(kind), items = draftFor(kind);
+  const box = previewFor(kind), items = draftFor(kind).map((item, index) => ({ item, index })).filter((entry) => entry.item.kind !== "sticker");
   if (!box) return;
-  box.innerHTML = items.map((item, i) => {
+  box.innerHTML = items.map(({ item, index }) => {
     var _a2;
-    return `<span class="attach-chip">${((_a2 = item.type) == null ? void 0 : _a2.startsWith("image/")) ? `<img src="${item.data}" alt="">` : ""}<span>${esc(item.kind === "sticker" ? "表情" : item.name || "附件")}</span><button type="button" data-remove-attach="${i}">×</button></span>`;
+    return `<span class="attach-chip">${((_a2 = item.type) == null ? void 0 : _a2.startsWith("image/")) ? `<img src="${item.data}" alt="">` : ""}<span>${esc(item.kind === "sticker" ? "表情" : item.name || "附件")}</span><button type="button" data-remove-attach="${index}">×</button></span>`;
   }).join("");
 }
 function renderChatPanel(kind, type = "emoji") {
@@ -459,17 +473,43 @@ function closeChatPanels() {
   setToolActive("desktop", "");
   setToolActive("mobile", "");
 }
+function resolveStickerAsset(name, attachments = []) {
+  const label = String(name || "").trim();
+  if (!label) return null;
+  const fromAttachments = attachments.find((item) => item && item.kind === "sticker" && String(item.name || "").trim() === label && (item.url || item.data));
+  if (fromAttachments) return fromAttachments.url || fromAttachments.data;
+  const builtin = builtinStickers.find((item) => String(item.name || "").trim() === label && item.data);
+  if (builtin) return builtin.data;
+  const local = stickerStore.find((item) => String(item.name || "").trim() === label && item.data);
+  return local ? local.data : null;
+}
+function renderStickerText(text, attachments = []) {
+  const source = String(text || "");
+  if (!source) return "";
+  const parts = [];
+  let lastIndex = 0;
+  const regex = /\[([^\]]+)\]/g;
+  let match;
+  while ((match = regex.exec(source))) {
+    if (match.index > lastIndex) parts.push(esc(source.slice(lastIndex, match.index)));
+    const label = String(match[1] || "").trim();
+    const asset = resolveStickerAsset(label, attachments);
+    parts.push(asset ? `<img class="inline-sticker" src="${esc(asset)}" alt="${esc(label)}" title="${esc(label)}">` : esc(match[0]));
+    lastIndex = regex.lastIndex;
+  }
+  if (lastIndex < source.length) parts.push(esc(source.slice(lastIndex)));
+  return parts.join("");
+}
 function renderAttachments(items = []) {
-  if (!items.length) return "";
-  return `<div class="bubble-attachments">${items.map((item) => {
+  const visibleItems = items.filter((item) => item.kind !== "sticker");
+  if (!visibleItems.length) return "";
+  return `<div class="bubble-attachments">${visibleItems.map((item) => {
     if (String(item.type || "").startsWith("image/")) return `<a href="${esc(item.url || item.data)}" target="_blank"><img class="bubble-img" src="${esc(item.url || item.data)}" alt="${esc(item.name || "图片")}"></a>`;
     return `<a class="bubble-file" href="${esc(item.url || item.data)}" target="_blank">▣ ${esc(item.name || "文件")}</a>`;
   }).join("")}</div>`;
 }
 function messageTextHtml(text, attachments = []) {
-  const clean = esc(text || "");
-  const showText = text && !(text === "[表情包]" && attachments.length === 1) ? clean : "";
-  return `${showText}${renderAttachments(attachments)}`;
+  return `${renderStickerText(text, attachments)}${renderAttachments(attachments)}`;
 }
 function attachmentPrompt(items = []) {
   const stickers = items.filter((item) => item.kind === "sticker").map((item) => item.name || "表情包");
@@ -632,10 +672,9 @@ document.addEventListener("click", (e) => {
   if (builtinSticker) {
     const item = builtinStickers[Number(builtinSticker.dataset.sendBuiltinSticker)], kind = builtinSticker.closest("#mobileEmojiPanel") ? "mobile" : "desktop";
     if (item) {
-      draftFor(kind).push({ ...item });
-      renderAttachmentPreview(kind);
+      appendStickerToken(kind, item.name);
       closeChatPanels();
-      (_b2 = document.querySelector(kind === "mobile" ? "#mobileChatInput" : "#message")) == null ? void 0 : _b2.focus();
+      (_b2 = inputFor(kind)) == null ? void 0 : _b2.focus();
     }
     return;
   }
@@ -649,9 +688,10 @@ document.addEventListener("click", (e) => {
     const item = stickerStore[Number(sticker.dataset.sendSticker)], kind = sticker.closest("#mobileEmojiPanel") ? "mobile" : "desktop";
     if (item) {
       draftFor(kind).push({ ...item, kind: "sticker" });
+      appendStickerToken(kind, item.name);
       renderAttachmentPreview(kind);
       closeChatPanels();
-      (_d2 = document.querySelector(kind === "mobile" ? "#mobileChatInput" : "#message")) == null ? void 0 : _d2.focus();
+      (_d2 = inputFor(kind)) == null ? void 0 : _d2.focus();
     }
     return;
   }
