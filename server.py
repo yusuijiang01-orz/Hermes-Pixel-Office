@@ -988,8 +988,42 @@ def create_project_execution_task(board_slug, owner_message, company_state, grou
         args.extend(("--parent", parent))
     args.append("--json")
     task = json_command(*args)
+    if task and task.get("id"):
+        create_project_collaboration_tasks(board_slug, task["id"], owner_message, assignee)
     queue_dispatch(board_slug, "8", "5")
     return task
+
+
+def create_project_collaboration_tasks(board_slug, parent_task_id, owner_message, lead_assignee):
+    short = re.sub(r"\s+", " ", str(owner_message)).strip()[:28] or "老板项目改动"
+    role_specs = [
+        ("planner", "玩法闭环、优先级、验收标准"),
+        ("researcher", "风险检查、参考拆解、验证假设"),
+        ("writer", "文案体验、角色对白、玩家感受"),
+        ("default", "真实文件、接入、部署与可访问结果"),
+    ]
+    for profile, scope in role_specs:
+        if profile == lead_assignee:
+            continue
+        title = f"[协作子任务] {PROFILES[profile]['short']}：{short}"
+        body = (
+            "这是由老板群聊中的真实项目指令自动拆出的协作子任务。\n\n"
+            f"主任务：{owner_message}\n"
+            f"你的职责：{scope}\n\n"
+            "要求：\n"
+            "- 先产出你能落地的真实内容，不要只回复收到。\n"
+            "- 如果你修改了文件、规则、文案或验证结论，要在结果里写清楚。\n"
+            "- 完成后主执行人会回群汇报；你这里要留下可供汇总的结果。"
+        )
+        try:
+            json_command(
+                "kanban", "--board", board_slug, "create", title, "--body", body,
+                "--assignee", profile, "--priority", "1200", "--created-by", "老板直达协作拆解",
+                "--idempotency-key", f"exec-collab-{parent_task_id}-{profile}",
+                "--parent", parent_task_id, "--max-runtime", "60m", "--json",
+            )
+        except Exception as exc:
+            log_runtime_error("create_project_collaboration_tasks", exc)
 
 
 def social_brief(company_state, profile):
