@@ -21,7 +21,7 @@ let neighborhood = false;
 let state = null, selected = null, last = 0, nextFeed = 3500, chatMode = "private", cameraMode = new URLSearchParams(location.search).get("camera") || "auto", homeView = new URLSearchParams(location.search).get("home") || "planner", currentRoom = new URLSearchParams(location.search).get("room") || "office";
 let feedInitialized = false, lastFeedCreated = 0;
 const seenFeedKeys = /* @__PURE__ */ new Set(), feedQueue = [];
-const mobileState = { tab: "messages", messageFilter: "all", contactKind: "friends", chatOpen: false, chatMode: "private", agent: null, conversation: "team" };
+const mobileState = { tab: "messages", returnTab: "messages", messageFilter: "all", contactKind: "friends", chatOpen: false, chatMode: "private", agent: null, conversation: "team" };
 const scrollState = { desktop: { key: "", stick: true, top: 0 }, mobile: { key: "", stick: true, top: 0 } };
 const mentionState = { desktop: { query: "", start: -1, end: -1 }, mobile: { query: "", start: -1, end: -1 } };
 function esc(value) {

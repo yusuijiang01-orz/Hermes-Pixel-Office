@@ -194,6 +194,7 @@ function renderMobileChatScreen() {
     const items = all.filter((msg) => msg.mode !== "group" && msg.agent === (agent == null ? void 0 : agent.id)).sort((a, b) => (a.created || 0) - (b.created || 0));
     if (!items.length) {
       body.innerHTML = '<div class="empty">还没有私聊。<br>先去戳一下这位员工。</div>';
+      restoreScroll(body, "mobile", threadKey2, true);
       return;
     }
     const existing = new Set([...body.querySelectorAll(".msg-wrapper[data-msg-id]")].map((el) => el.dataset.msgId));
@@ -218,6 +219,7 @@ function renderMobileChatScreen() {
         `<div class="bubble theirs ${reply ? "" : "pending"}"><span class="bubble-name">${esc(agent.short || agent.name || "员工")}<span class="bubble-time">${msgTime(m.completed || m.created)}</span></span>${esc(reply ? compactText(reply, 400) : m.status === "blocked" ? "遇到问题，正在整理需要你决定的事项..." : "正在处理并组织回复...")}</div>`
       ].join("");
     });
+    restoreScroll(body, "mobile", threadKey2);
     return;
   }
   const threadKey = `group:${mobileState.conversation || "team"}`;
@@ -231,6 +233,7 @@ function renderMobileChatScreen() {
   });
   if (!groups.size) {
     body.innerHTML = '<div class="empty">群里还很安静。<br>发个话题试试。</div>';
+    restoreScroll(body, "mobile", threadKey, true);
     return;
   }
   const existingConv = new Set([...body.querySelectorAll(".conv-group[data-conv-id]")].map((el) => el.dataset.convId));
@@ -263,6 +266,7 @@ function renderMobileChatScreen() {
     });
     container.innerHTML = html.join("");
   });
+  restoreScroll(body, "mobile", threadKey);
 }
 function renderMobileShell() {
   if (!state) return;
@@ -274,6 +278,7 @@ function renderMobileShell() {
   renderMobileChatScreen();
 }
 function openMobileChatPrivate(id) {
+  mobileState.returnTab = mobileState.tab || "messages";
   mobileState.chatOpen = true;
   mobileState.chatMode = "private";
   mobileState.agent = id;
@@ -285,6 +290,7 @@ function openMobileChatPrivate(id) {
   renderMobileShell();
 }
 function openMobileChatGroup(conversation = "team") {
+  mobileState.returnTab = mobileState.tab || "messages";
   mobileState.chatOpen = true;
   mobileState.chatMode = "group";
   mobileState.conversation = conversation;
@@ -476,12 +482,14 @@ function renderChat() {
   const box = document.querySelector("#chat"), all = (state == null ? void 0 : state.messages) || [];
   const dataHash = JSON.stringify(all.map((m) => [m.id, m.prompt, m.reply, m.status, m.mode, m.conversation, m.agent]));
   if (chatMode === "private") {
+    const threadKey = `private:${selected || "none"}`;
     const hash = `private:${selected || "none"}:${dataHash}`;
     if (hash === _prevPrivateHash && _lastRenderVersion && _renderedChatMode === "private") return;
     if (_renderedChatMode !== "private") box.innerHTML = "";
     const items = all.filter((m) => m.mode !== "group" && m.agent === selected);
     if (!items.length) {
       box.innerHTML = '<div class="empty">还没有私聊。<br>点击员工后可以直接交流。</div>';
+      restoreScroll(box, "desktop", threadKey, true);
       _prevPrivateHash = hash;
       _renderedChatMode = "private";
       _lastRenderVersion++;
@@ -509,9 +517,11 @@ function renderChat() {
         `<div class="bubble theirs ${reply ? "" : "pending"}"><span class="bubble-name">${esc(m.name || "员工")}<span class="bubble-time">${msgTime(m.completed || m.created)}</span></span>${reply ? esc(reply) : m.status === "blocked" ? "遇到问题，正在整理需要你决定的事项..." : "正在处理并组织回复..."}</div>`
       ].join("");
     });
+    restoreScroll(box, "desktop", threadKey);
     _prevPrivateHash = hash;
     _renderedChatMode = "private";
   } else {
+    const threadKey = "group:team";
     const hash = `group:${dataHash}`;
     if (hash === _prevGroupHash && _lastRenderVersion && _renderedChatMode === "group") return;
     if (_renderedChatMode !== "group") box.innerHTML = "";
@@ -522,6 +532,7 @@ function renderChat() {
     });
     if (!groups.size) {
       box.innerHTML = '<div class="empty">群里还很安静。<br>发个话题，成员会接话、追问或互相讨论。</div>';
+      restoreScroll(box, "desktop", threadKey, true);
       _prevGroupHash = hash;
       _renderedChatMode = "group";
       _lastRenderVersion++;
@@ -557,6 +568,7 @@ function renderChat() {
       });
       container.innerHTML = html.join("");
     });
+    restoreScroll(box, "desktop", threadKey);
     _prevGroupHash = hash;
     _renderedChatMode = "group";
   }
@@ -796,7 +808,7 @@ document.querySelector("#mobileContactSearch").addEventListener("input", () => r
 });
 (_l = document.querySelector("#mobileChatBack")) == null ? void 0 : _l.addEventListener("click", () => {
   mobileState.chatOpen = false;
-  mobileState.tab = "company";
+  mobileState.tab = mobileState.returnTab || "messages";
   renderMobileShell();
 });
 (_m = document.querySelector("#roomBack")) == null ? void 0 : _m.addEventListener("click", () => leaveRoom("button"));
