@@ -21,9 +21,10 @@ ROOT = Path(__file__).resolve().parent
 COMPANY_STATE_PATH = ROOT / "company_state.json"
 ERROR_LOG_PATH = ROOT / "runtime_errors.log"
 UPLOAD_DIR = ROOT / "uploads" / "chat"
+DEFAULT_HERMES_EXE = r"C:\Users\admin\AppData\Local\hermes\hermes-agent\venv\Scripts\hermes.exe" if os.name == "nt" else "/usr/local/bin/hermes"
 HERMES = Path(os.environ.get(
     "HERMES_EXE",
-    r"C:\Users\admin\AppData\Local\hermes\hermes-agent\venv\Scripts\hermes.exe",
+    DEFAULT_HERMES_EXE,
 ))
 PORT = int(os.environ.get("PORT", "8777"))
 API_KEY = os.environ.get("HERMES_API_KEY", "").strip()
@@ -223,6 +224,22 @@ VISIBLE_CHAT_TASK_STATUSES = {"todo", "ready", "review", "running", "blocked", "
 ACTIONABLE_TASK_STATUSES = {"todo", "ready", "review", "running", "blocked"}
 BACKGROUND_TASK_PREFIXES = ("[Universe Deposit]",)
 INTERNAL_CHAT_REPEAT_WINDOW = 12 * 3600
+
+
+def hermes_state_root():
+    override = os.environ.get("HERMES_HOME", "").strip()
+    if override:
+        return Path(override).expanduser()
+    if os.name == "nt":
+        local = os.environ.get("LOCALAPPDATA", "").strip()
+        if local:
+            return Path(local) / "hermes"
+        return Path.home() / "AppData" / "Local" / "hermes"
+    return Path.home() / ".hermes"
+
+
+def hermes_board_dir(board_slug):
+    return hermes_state_root() / "kanban" / "boards" / board_slug
 
 
 def get_world_state():
@@ -1150,7 +1167,7 @@ def log_runtime_error(context, exc):
 
 
 def recover_log_reply(board_slug, task_id):
-    log_path = Path(os.environ.get("LOCALAPPDATA", "")) / "hermes" / "kanban" / "boards" / board_slug / "logs" / f"{task_id}.log"
+    log_path = hermes_board_dir(board_slug) / "logs" / f"{task_id}.log"
     if not log_path.exists():
         return None
     clean = ANSI_RE.sub("", log_path.read_text(encoding="utf-8", errors="replace"))
@@ -1456,7 +1473,7 @@ def fast_state():
     world = get_world_state()
     company_state = load_company_state()
     board_slug = FAST_BOARD_SLUG
-    board_db = Path.home() / "AppData" / "Local" / "hermes" / "kanban" / "boards" / board_slug / "kanban.db"
+    board_db = hermes_board_dir(board_slug) / "kanban.db"
     active = {"slug": board_slug, "name": "Relicbound ARPG"}
     tasks = []
     if board_db.exists():

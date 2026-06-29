@@ -10,6 +10,7 @@ DOMAIN=""
 ADMIN_USER="admin"
 ADMIN_PASS=""
 HERMES_EXE="/usr/local/bin/hermes"
+HERMES_HOME="/var/lib/hermes-pixel-office/.hermes"
 EMAIL=""
 NO_SSL="0"
 REPO_URL=""
@@ -46,6 +47,7 @@ Options:
   --admin-user        Nginx Basic Auth username. Default: admin.
   --admin-pass        Nginx Basic Auth password. Prompted if omitted.
   --hermes-exe        Hermes CLI path on VPS. Default: /usr/local/bin/hermes.
+  --hermes-home       Hermes data directory. Default: /var/lib/hermes-pixel-office/.hermes.
   --email             Email for Let's Encrypt when --domain is set.
   --app-dir           Install directory. Default: /opt/hermes-pixel-office.
   --skip-nginx-install
@@ -65,6 +67,7 @@ while [[ $# -gt 0 ]]; do
     --admin-user) ADMIN_USER="${2:-}"; shift 2 ;;
     --admin-pass) ADMIN_PASS="${2:-}"; shift 2 ;;
     --hermes-exe) HERMES_EXE="${2:-}"; shift 2 ;;
+    --hermes-home) HERMES_HOME="${2:-}"; shift 2 ;;
     --email) EMAIL="${2:-}"; shift 2 ;;
     --app-dir) APP_DIR="${2:-}"; shift 2 ;;
     --skip-nginx-install) SKIP_NGINX_INSTALL="1"; shift ;;
@@ -132,10 +135,15 @@ fi
 mkdir -p "${APP_DIR}/uploads/chat"
 chown -R "${SERVICE_USER}:${SERVICE_USER}" "${APP_DIR}"
 
+echo "==> Preparing Hermes home"
+mkdir -p "${HERMES_HOME}"
+chown -R "${SERVICE_USER}:${SERVICE_USER}" "${HERMES_HOME}"
+
 echo "==> Writing environment file"
 cat >"/etc/${APP_NAME}.env" <<EOF
 PORT=${PORT}
 HERMES_EXE=${HERMES_EXE}
+HERMES_HOME=${HERMES_HOME}
 EOF
 chmod 640 "/etc/${APP_NAME}.env"
 chown root:"${SERVICE_USER}" "/etc/${APP_NAME}.env"
@@ -151,6 +159,7 @@ Wants=network-online.target
 Type=simple
 WorkingDirectory=${APP_DIR}
 EnvironmentFile=/etc/${APP_NAME}.env
+Environment=HOME=${HERMES_HOME%/.hermes}
 ExecStart=/usr/bin/python3 ${APP_DIR}/server.py
 Restart=always
 RestartSec=3
