@@ -87,7 +87,8 @@ ROBOTIC_CHAT_PATTERNS = (
     r"自然收尾", r"没有制造额外任务", r"消息已发送", r"纯闲聊回复", r"\[SILENT\]",
     r"输出\s*\[SILENT\]", r"围绕.+?话题", r"保持沉默", r"摘要[:：]?", r"总结[:：]?",
     r"already\s+completed", r"done\.", r"as\s+.+response", r"completed\.",
-    r"^以.+身份", r"^作为.+参与", r"等待同事接话", r"开了\d+条消息"
+    r"^以.+身份", r"^作为.+参与", r"^作为.+在内部群聊", r"等待同事接话", r"开了\d+条消息",
+    r"^用户没有在规定时间内回应", r"^task complete\.", r"^任务完成。我在群里"
 )
 ERROR_REPLY_PATTERNS = (
     r"Traceback \(most recent call last\)",
@@ -113,14 +114,21 @@ NON_CHAT_REPLY_PATTERNS = (
     r"完整 patch",
     r"^以.+身份",
     r"^作为.+参与",
+    r"^作为.+在内部群聊",
     r"等待同事接话",
     r"开了\d+条消息",
+    r"^用户没有在规定时间内回应",
+    r"^Task complete\.",
+    r"^任务完成。我在群里",
 )
 DEFAULT_COMPANY_STATE = {
     "version": 1,
     "studio_name": "Hermes Pixel Works",
-    "open_roles": [],
-    "pending_notices": [],
+    "open_roles": ["前端像素 UI 工程师", "Companyverse 场景设计师"],
+    "pending_notices": [
+        "公司公告：聊天内容会继续沉淀为世界记忆、任务候选与场景彩蛋。",
+        "招聘中：欢迎补强移动端 UI、场景交互与小游戏体验。"
+    ],
     "operating_rules": [
         "老板在聊天里明确提出开发、修改、交付、先做一版看看时，视为项目指令。",
         "员工在群里承诺我来做、我负责、我立马去做时，承诺者必须成为执行人或创建自己能推动的子任务。",
@@ -345,6 +353,21 @@ def load_company_state():
     data.setdefault("assets", [])
     data.setdefault("recent_events", [])
     data.setdefault("execution_policy", DEFAULT_COMPANY_STATE["execution_policy"])
+    if not data.get("open_roles"):
+        data["open_roles"] = list(DEFAULT_COMPANY_STATE["open_roles"])
+    if not data.get("pending_notices"):
+        data["pending_notices"] = list(DEFAULT_COMPANY_STATE["pending_notices"])
+    if not data.get("recent_events"):
+        data["recent_events"] = list(DEFAULT_COMPANY_STATE["recent_events"])
+    if len(data.get("recent_events") or []) < 4 and (data.get("universe_events") or []):
+        for item in (data.get("universe_events") or [])[-6:]:
+            text = str(item.get("text") if isinstance(item, dict) else item).strip()
+            when = str(item.get("time") if isinstance(item, dict) else datetime.now().strftime("%Y-%m-%d"))
+            if not text:
+                continue
+            if not any(str(existing.get("text") or "").strip() == text for existing in data["recent_events"] if isinstance(existing, dict)):
+                data["recent_events"].append({"time": when, "text": text[:180]})
+        data["recent_events"] = (data.get("recent_events") or [])[-12:]
     for fact in DEFAULT_COMPANY_STATE["facts"]:
         if fact not in data["facts"]:
             data["facts"].append(fact)
@@ -690,6 +713,11 @@ def deposit_chat_to_universe(message, company_state, source="boss", speaker=None
         "text": event_text,
     }
     changed = append_unique_item(company_state.setdefault("universe_events", []), event, ("source", "speaker", "text")) or changed
+    recent_entry = {
+        "time": today,
+        "text": event_text,
+    }
+    changed = append_unique_item(company_state.setdefault("recent_events", []), recent_entry, ("text",)) or changed
     idea_title = None
     if category in ("universe_growth", "company_life", "gameplay", "world_area", "narrative"):
         idea_title = universe_task_title(text, category) or f"把「{text[:24]}」沉淀进像素宇宙"
@@ -1473,6 +1501,13 @@ def choose_speakers(text, exclude=(), limit=2):
     return result
 
 
+def choose_group_speakers(text, exclude=(), limit=None):
+    roster = choose_speakers(text, exclude=exclude, limit=len(PROFILES))
+    if limit is None:
+        return roster
+    return roster[:limit]
+
+
 def extract_chat_lines(reply):
     if not reply:
         return []
@@ -1580,6 +1615,12 @@ def fast_state():
         owner_chat = title.startswith(CHAT_TASK_PREFIXES)
         presence = employee_presence_for(world, status, owner_chat=owner_chat, blocked=bool(blocked))
         social = (company_state.get("employees") or {}).get(key, {})
+        relation = social.get("social") or {}
+        relation_text = "；".join(
+            f"{label}:{'、'.join(PROFILES.get(name, {'short': name})['short'] for name in names)}"
+            for label, names in relation.items()
+            if isinstance(names, list) and names
+        )
         agents.append({
             "id": key, **info, "status": status,
             "presence": presence,
@@ -1600,7 +1641,7 @@ def fast_state():
                 ] if not line.endswith("：")
             ),
             "social_detail": social_brief(company_state, key),
-            "relationship_summary": "",
+            "relationship_summary": relation_text,
         })
     messages, team_feed = [], []
     chat_tasks = sorted(
@@ -1770,14 +1811,18 @@ def create_group_round(board_slug, group_id, round_no, profiles, owner_message, 
 
 
 def maybe_spawn_internal_chat(board_slug, tasks, company_state, world):
-    if world.get("phase") not in ("work", "lunch"):
+    if world.get("phase") not in ("work", "lunch", "home"):
         return False
-    active_backlog = sum(1 for task in tasks if task.get("status") in ("todo", "ready", "running"))
-    if active_backlog > 24:
+    active_backlog = sum(
+        1 for task in tasks
+        if task.get("status") in ("todo", "ready", "running")
+        and not str(task.get("title", "")).startswith(CHAT_TASK_PREFIXES + BACKGROUND_TASK_PREFIXES + ("[项目执行]",))
+    )
+    if active_backlog > 80:
         return False
     with AUTO_CHAT_LOCK:
         current_ts = int(time.time())
-        cooldown = 210 if world.get("phase") == "lunch" else 150
+        cooldown = 480 if world.get("phase") == "home" else 210 if world.get("phase") == "lunch" else 150
         groups = {}
         latest_internal = 0
         for task in tasks:
@@ -1856,19 +1901,24 @@ def advance_group_conversations(board_slug, tasks, company_state):
                 )
                 spawned = True
             if latest == 1:
+                current_assignees = [t.get("assignee") for t in current]
                 mentions = mentioned_profiles(transcript)
                 profiles = []
-                for profile in mentions + choose_speakers(owner_message + transcript, exclude=set(used), limit=2):
-                    if profile not in profiles and profile not in [t.get("assignee") for t in current]:
+                for profile in mentions + choose_group_speakers(owner_message + transcript, exclude=set(used)):
+                    if profile not in profiles and profile not in current_assignees:
                         profiles.append(profile)
-                if not profiles:
-                    profiles = choose_speakers(owner_message + transcript, exclude=(), limit=1)
-                create_group_round(board_slug, gid, 2, profiles[:2], owner_message, transcript, company_state, parents, origin=origin, initiator=first.get("assignee"))
+                if not profiles and len(set(current_assignees)) < len(PROFILES):
+                    profiles = choose_group_speakers(owner_message + transcript, exclude=set(current_assignees))
+                if profiles:
+                    create_group_round(board_slug, gid, 2, profiles[: max(1, len(PROFILES) - len(set(current_assignees)))], owner_message, transcript, company_state, parents, origin=origin, initiator=first.get("assignee"))
             else:
                 decision_topic = any(word in owner_message + transcript for word in ("决定", "安排", "方向", "优先级", "任务"))
                 mentions = mentioned_profiles("\n".join(transcript_lines[-4:]))
-                profile = mentions[-1] if mentions else ("planner" if decision_topic else choose_speakers(owner_message + transcript, exclude={current[-1].get('assignee')}, limit=1)[0])
-                create_group_round(board_slug, gid, 3, [profile], owner_message, transcript, company_state, parents, final_round=True, origin=origin, initiator=first.get("assignee"))
+                if mentions or decision_topic:
+                    profile = mentions[-1] if mentions else ("planner" if decision_topic else choose_speakers(owner_message + transcript, exclude={current[-1].get('assignee')}, limit=1)[0])
+                    create_group_round(board_slug, gid, 3, [profile], owner_message, transcript, company_state, parents, final_round=True, origin=origin, initiator=first.get("assignee"))
+                    spawned = True
+                continue
             spawned = True
     return spawned
 
@@ -2401,7 +2451,7 @@ class Handler(SimpleHTTPRequestHandler):
                 }]
             else:
                 group_id = format(int(time.time() * 1000), "x")[-8:]
-                speakers = choose_speakers(display_message, limit=2)
+                speakers = choose_group_speakers(display_message, limit=len(PROFILES))
                 created = create_group_round(board, group_id, 1, speakers, agent_message, "", company_state, origin="boss", priority="1000")
                 existing_tasks = json_command("kanban", "--board", board, "list", "--json") or []
                 if is_project_execution_request(message) and not project_task_exists(existing_tasks, message, group_id):

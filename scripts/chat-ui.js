@@ -259,14 +259,12 @@ function renderMobileChatScreen() {
     const boss = msgs.find((m) => m.origin === "boss" && m.prompt) || msgs.find((m) => m.prompt);
     const html = [];
     if (boss) html.push(`<div class="msg-wrapper" data-msg-id="boss-${esc(key)}"><div class="bubble mine">${messageTextHtml(boss.prompt, boss.attachments)}<span class="bubble-time">${msgTime(boss.created)}</span></div></div>`);
-    msgs.forEach((m) => {
-      const speaker = (m.name || "员工").split(" ").slice(-1)[0], cl = validChatLines(m);
-      if (cl.length) {
-        html.push(`<div class="msg-wrapper" data-msg-id="${esc(m.id)}">${cl.map((line) => `<div class="bubble theirs" data-reply="${esc(speaker)}"><span class="bubble-name">${esc(speaker)}<span class="bubble-time">${msgTime(m.completed || m.created)}</span></span>${esc(line)}</div>`).join("")}</div>`);
-      } else if (!m._local && m.status !== "done" && m.status !== "archived") {
-        html.push(`<div class="msg-wrapper" data-msg-id="${esc(m.id)}"><div class="bubble theirs pending" data-reply="${esc(speaker)}"><span class="bubble-name">${esc(speaker)}</span>正在处理...</div></div>`);
-      }
-    });
+      msgs.forEach((m) => {
+        const speaker = (m.name || "员工").split(" ").slice(-1)[0], cl = validChatLines(m);
+        if (cl.length) {
+          html.push(`<div class="msg-wrapper" data-msg-id="${esc(m.id)}">${cl.map((line) => `<div class="bubble theirs" data-reply="${esc(speaker)}"><span class="bubble-name">${esc(speaker)}<span class="bubble-time">${msgTime(m.completed || m.created)}</span></span>${esc(line)}</div>`).join("")}</div>`);
+        }
+      });
     container.innerHTML = html.join("");
   });
   restoreScroll(body, "mobile", threadKey);
@@ -612,8 +610,6 @@ function renderChat() {
         const short = (m.name || "员工").split(" ").slice(-1)[0], cl = validChatLines(m);
         if (cl.length) {
           html.push(`<div class="msg-wrapper" data-msg-id="${esc(m.id)}">${cl.map((line) => `<div class="bubble theirs" data-reply="${esc(short)}"><span class="bubble-name">${esc(short)}<span class="bubble-time">${msgTime(m.completed || m.created)}</span></span>${esc(line)}</div>`).join("")}</div>`);
-        } else if (!m._local && m.status !== "done" && m.status !== "archived") {
-          html.push(`<div class="msg-wrapper" data-msg-id="${esc(m.id)}"><div class="bubble theirs pending" data-reply="${esc(short)}"><span class="bubble-name">${esc(short)}</span>正在处理...</div></div>`);
         }
       });
       container.innerHTML = html.join("");
