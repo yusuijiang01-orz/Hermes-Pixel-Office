@@ -24,6 +24,9 @@ const seenFeedKeys = /* @__PURE__ */ new Set(), feedQueue = [];
 const mobileState = { tab: "messages", messageFilter: "all", contactKind: "friends", chatOpen: false, chatMode: "private", agent: null, conversation: "team" };
 const scrollState = { desktop: { key: "", stick: true, top: 0 }, mobile: { key: "", stick: true, top: 0 } };
 const mentionState = { desktop: { query: "", start: -1, end: -1 }, mobile: { query: "", start: -1, end: -1 } };
+function isMobileView() {
+  return innerWidth <= 700;
+}
 function esc(value) {
   return String(value != null ? value : "").replace(/[&<>"']/g, (ch) => ({
     "&": "&amp;",
