@@ -16,13 +16,56 @@
 <div id="loading-screen" class="visible"><canvas id="loading-canvas" width="128" height="128"></canvas><div class="loading-text">柯基正在加载中...</div></div>
   <header><div class="brand"><b>HERMES</b> PIXEL WORKS</div><div class="live"><span class="dot"></span><span id="sync">正在连接公司...</span></div><div class="world" id="world">读取世界时间...</div><button class="fish-link" id="gameHub" type="button" style="display:none">游戏宇宙</button><div class="project" id="project">读取项目中</div></header>
   <main>
-    <div class="tip" id="sceneTip">点击员工聊天，点工位看他忙啥</div><button class="fun-btn" id="funBtn" type="button">😂 搞笑</button><div class="fun-dialogue" id="funDialogue"></div>
-    <div class="game-mode-indicator" id="gameIndicator">游戏模式</div>
-<div class="virtual-joystick" id="virtualJoystick"><div class="joystick-base"><div class="joystick-thumb" id="joystickThumb"></div></div></div>
-<div class="game-actions" id="gameActions">
-  <button class="game-action-btn jump" id="gameJump" type="button">跳</button>
-  <button class="game-action-btn interact" id="gameInteract" type="button">✋</button>
-</div><button class="room-rescue" id="roomBack" type="button">← 返回办公室</button><button class="room-rescue secondary" id="roomHome" type="button">⌂ 公司首页</button></section>
+    <section class="stage">
+      <canvas id="office" width="960" height="720"></canvas>
+      <div class="camera">
+        <button type="button" data-camera="office">办公室</button>
+        <button type="button" data-camera="auto" class="active">跟随</button>
+        <button type="button" data-camera="home">住宅</button>
+        <button type="button" data-camera="boss">老板室</button>
+      </div>
+      <div class="home-switcher" id="homeSwitcher">
+        <button type="button" data-home="default">阿默</button>
+        <button type="button" data-home="planner" class="active">小韩</button>
+        <button type="button" data-home="researcher">小研</button>
+        <button type="button" data-home="writer">小文</button>
+      </div>
+      <div class="edit-bar" id="editBar">
+        <button type="button" id="editToggle">编辑布局</button>
+        <button type="button" class="save" id="editSave">保存</button>
+        <button type="button" id="editCancel">取消</button>
+        <button type="button" class="edit-reset" id="editReset">重置</button>
+      </div>
+      <button class="edit-fab" id="editFab" type="button">编辑布局</button>
+      <div class="tip" id="sceneTip">点击员工聊天，点工位看他忙啥</div>
+      <button class="fun-btn" id="funBtn" type="button">😂 搞笑</button>
+      <div class="fun-dialogue" id="funDialogue"></div>
+      <div class="game-mode-indicator" id="gameIndicator">游戏模式</div>
+      <div class="virtual-joystick" id="virtualJoystick"><div class="joystick-base"><div class="joystick-thumb" id="joystickThumb"></div></div></div>
+      <div class="game-actions" id="gameActions">
+        <button class="game-action-btn jump" id="gameJump" type="button">跳</button>
+        <button class="game-action-btn interact" id="gameInteract" type="button">✋</button>
+      </div>
+      <button class="room-rescue" id="roomBack" type="button">← 返回办公室</button>
+      <button class="room-rescue secondary" id="roomHome" type="button">⌂ 公司首页</button>
+      <button class="mobile-office-menu-btn" id="mobileOfficeMenuBtn" type="button">≡</button>
+      <div class="mobile-office-menu" id="mobileOfficeMenu">
+        <button type="button" class="primary" data-office-menu="group">打开群聊</button>
+        <button type="button" data-office-menu="company">回到公司页</button>
+        <button type="button" data-office-menu="edit">编辑布局</button>
+        <button type="button" data-office-menu="game">进入游戏宇宙</button>
+      </div>
+      <div class="mobile-edit-top" id="mobileEditTop">
+        <button type="button" data-mobile-edit="close">关闭编辑</button>
+        <button type="button" data-mobile-edit="camera">切换镜头</button>
+        <button type="button" data-mobile-edit="settings">设置</button>
+        <button type="button" data-mobile-edit="edit" class="active">拖动物件</button>
+      </div>
+      <div class="mobile-edit-commit" id="mobileEditCommit">
+        <button type="button" class="cancel" id="mobileEditRevert">×</button>
+        <button type="button" class="confirm" id="mobileEditConfirm">√</button>
+      </div>
+    </section>
     <aside class="collapsed">
       <div class="agent-head"><div class="agent-name" id="agentName">选择一位员工</div><div class="agent-role" id="agentRole">点击办公室中的角色</div><div class="status-line"><span class="badge" id="agentStatus">等待选择</span></div><button class="sheet-toggle" id="sheetToggle" title="收起沟通面板">⌄</button></div>
       <div class="needs" id="needs"><div class="need"><span>疲劳</span><div class="meter"><i></i></div><b>--</b></div><div class="need"><span>饥饿</span><div class="meter"><i></i></div><b>--</b></div><div class="need"><span>口渴</span><div class="meter"><i></i></div><b>--</b></div><div class="need"><span>心情</span><div class="meter"><i></i></div><b>--</b></div></div>
@@ -142,7 +185,6 @@
       <div class="mention-menu" id="mobileMentionMenu"></div>
     </section>
   </section>
-</div>
   <script src="/scripts/core.js?v=split-20260629b"></script>
   <script src="/scripts/office-scene.js?v=split-20260629b"></script>
   <script src="/scripts/chat-ui.js?v=split-20260629b"></script>
