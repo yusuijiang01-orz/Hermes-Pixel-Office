@@ -90,6 +90,18 @@
 .mobile-boss-card p{margin-top:6px !important}
 .mobile-boss-line{margin-top:8px;font-size:11px;line-height:1.6;color:#6c787d}
 .mobile-boss-card.blocked{border-color:#d6a296;background:#fff6f2}
+.mobile-delivery-card{padding:12px;border:2px solid #c7ced6;background:#fffdf6;box-shadow:2px 2px 0 #d7dbe3}
+.mobile-delivery-card strong{display:block;font-size:13px;line-height:1.5;color:#233039}
+.mobile-delivery-line{margin-top:7px;font-size:11px;line-height:1.6;color:#69767c}
+.mobile-universe-grid,.mobile-review-grid{display:grid;gap:10px}
+.mobile-universe-card,.mobile-review-card{padding:12px;border:2px solid #c8ced8;background:#fffdf6;box-shadow:2px 2px 0 #d7dbe3}
+.mobile-universe-card strong,.mobile-review-card strong{display:block;font-size:13px;line-height:1.5;color:#223038}
+.mobile-universe-card p,.mobile-review-card p{margin-top:6px !important}
+.mobile-universe-card.idea{border-color:#b9b1da;background:#faf7ff}
+.mobile-universe-card.candidate{border-color:#8ab49f;background:#f3fff7}
+.mobile-review-card.blocked{border-color:#d6a296;background:#fff6f2}
+.mobile-review-card.ready{border-color:#d5bb7c;background:#fff9eb}
+.mobile-review-line{margin-top:8px;font-size:11px;line-height:1.6;color:#6c787d}
     .mobile-row-buttons{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
     .mobile-ghost-btn,.mobile-solid-btn{height:34px;padding:0 12px;border:3px solid #354349;font-weight:800}
     .mobile-ghost-btn{background:#f7f4ea;color:#253137}

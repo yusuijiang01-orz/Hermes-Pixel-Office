@@ -166,6 +166,27 @@ function taskTimelineText(task) {
   if (!ts) return "刚同步";
   return new Date(ts * 1e3).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
+function shortLine(text, max = 88) {
+  const cleaned = cleanSpeechText(text || "").replace(/\s+/g, " ").trim();
+  if (!cleaned) return "";
+  return cleaned.length > max ? cleaned.slice(0, max - 1) + "…" : cleaned;
+}
+function relativeClockLabel(value) {
+  if (!value) return "最近";
+  if (typeof value === "number") return msgTime(value, true) || "最近";
+  return String(value);
+}
+function universeCategoryLabel(item) {
+  const category = String((item == null ? void 0 : item.category) || "").toLowerCase();
+  return {
+    universe_growth: "宇宙生长",
+    company_life: "公司生活",
+    memory: "长期记忆",
+    gameplay: "玩法",
+    scene: "场景",
+    dialogue: "对白"
+  }[category] || ((item == null ? void 0 : item.category) || "宇宙沉淀");
+}
 function privateReplyText(message) {
   const reply = cleanSpeechText((message == null ? void 0 : message.reply) || "");
   if (!reply || uiNoise(reply)) return "";
@@ -335,7 +356,7 @@ function renderMobileContacts() {
 }
 function renderMobileCompany() {
   var _a2, _b2, _c2, _d2, _e2, _f2;
-  const company = (state == null ? void 0 : state.company) || {}, notices = ((_a2 = company.pending_notices) == null ? void 0 : _a2.length) ? company.pending_notices : [], roles = ((_b2 = company.open_roles) == null ? void 0 : _b2.length) ? company.open_roles : [], relations = ((state == null ? void 0 : state.agents) || []).map((agent) => `${agent.short || agent.name}：${agent.relationship_summary || "暂无关系备注"}`), tasks = (company.project_tasks || []).slice(), strategyDocs = (company.strategy_documents || []).slice(), bossPanel = company.boss_panel || {}, bossSummary = bossPanel.summary || {}, blockedTasks = (bossPanel.blocked_tasks || []).slice(), teamDecisions = (bossPanel.team_decisions || []).slice(), followups = (bossPanel.followups || []).slice();
+  const company = (state == null ? void 0 : state.company) || {}, notices = ((_a2 = company.pending_notices) == null ? void 0 : _a2.length) ? company.pending_notices : [], roles = ((_b2 = company.open_roles) == null ? void 0 : _b2.length) ? company.open_roles : [], relations = ((state == null ? void 0 : state.agents) || []).map((agent) => `${agent.short || agent.name}：${agent.relationship_summary || "暂无关系备注"}`), tasks = (company.project_tasks || []).slice(), strategyDocs = (company.strategy_documents || []).slice(), bossPanel = company.boss_panel || {}, bossSummary = bossPanel.summary || {}, blockedTasks = (bossPanel.blocked_tasks || []).slice(), teamDecisions = (bossPanel.team_decisions || []).slice(), followups = (bossPanel.followups || []).slice(), recentEvents = (company.recent_events || []).slice(0, 8), universeIdeas = (company.universe_ideas || []).slice(0, 4), universeTasks = (company.universe_tasks || []).slice(0, 4), universeEvents = (company.universe_events || []).slice(0, 4), staleReviews = (company.stale_project_reviews || []).slice(0, 6);
   document.querySelector("#mobileWorldLabel").textContent = ((_c2 = state == null ? void 0 : state.world) == null ? void 0 : _c2.label) || "读取中";
   document.querySelector("#mobileWeatherChip").textContent = ((_d2 = state == null ? void 0 : state.world) == null ? void 0 : _d2.weather) || "天气";
   setBadgeCount(document.querySelector("#mobileCompanyBadge"), companyPendingCount());
@@ -356,6 +377,17 @@ function renderMobileCompany() {
     bossCards.push(`<article class="mobile-boss-card"><strong>待复盘</strong><p>${esc(item.title || "待复盘任务")}</p><div class="mobile-boss-line">${esc(taskStatusLabel(item.status) || item.status || "待复盘")} · ${esc(msgTime(item.reviewed_at, true) || "近期")}</div></article>`);
   });
   document.querySelector("#mobileBossBoard").innerHTML = bossCards.length ? `<div class="mobile-boss-grid">${bossCards.join("")}</div>` : '<div class="mobile-section-title">暂无待关注推进项</div>';
+  document.querySelector("#mobileDeliverySummary").textContent = recentEvents.length ? `过去一小时左右共整理出 ${recentEvents.length} 条可见推进。这里优先看“世界刚刚动了什么”。` : "最近还没有整理出新的真实交付。";
+  document.querySelector("#mobileDeliveryBoard").innerHTML = recentEvents.length ? `<div class="mobile-boss-grid">${recentEvents.map((event) => `<article class="mobile-delivery-card"><strong>${esc(shortLine(event.text || "最新交付", 80))}</strong><div class="mobile-delivery-line">${esc(relativeClockLabel(event.time))}</div></article>`).join("")}</div>` : '<div class="mobile-section-title">暂无最近交付</div>';
+  const universeCards = [
+    ...universeTasks.map((item) => `<article class="mobile-universe-card ${esc(item.status || "candidate")}"><strong>${esc(item.title || "待落地宇宙任务")}</strong><p>${esc(shortLine(item.origin || "这条聊天已经进入待落地队列。", 90))}</p><div class="mobile-review-line">${esc((agentById(item.implementer || item.owner) || {}).short || item.owner || "团队")} · ${esc(universeCategoryLabel(item))} · ${esc(item.status || "candidate")}</div></article>`),
+    ...universeIdeas.map((item) => `<article class="mobile-universe-card idea"><strong>${esc(item.title || "宇宙想法")}</strong><p>${esc(shortLine(item.origin || "这条聊天已经被识别为世界想法。", 90))}</p><div class="mobile-review-line">${esc(item.source === "boss" ? "老板" : "员工")} · ${esc(universeCategoryLabel(item))} · 想法</div></article>`),
+    ...universeEvents.map((item) => `<article class="mobile-universe-card"><strong>${esc(shortLine(item.text || "宇宙事件", 78))}</strong><p>${esc(`${item.speaker || "团队"} 留下了一条可沉淀的世界记录。`)}</p><div class="mobile-review-line">${esc(relativeClockLabel(item.time))} · ${esc(universeCategoryLabel(item))}</div></article>`)
+  ].slice(0, 8);
+  document.querySelector("#mobileUniverseSummary").textContent = universeCards.length ? `最近整理出 ${universeCards.length} 条世界沉淀候选，已经能看见“聊天正在长成宇宙内容”。` : "最近还没有新的宇宙沉淀进入看板。";
+  document.querySelector("#mobileUniverseBoard").innerHTML = universeCards.length ? `<div class="mobile-universe-grid">${universeCards.join("")}</div>` : '<div class="mobile-section-title">暂无宇宙沉淀</div>';
+  document.querySelector("#mobileReviewSummary").textContent = staleReviews.length ? `这里是需要老板继续盯一下的旧任务与复盘项，共 ${staleReviews.length} 条。` : "当前没有积压的复盘项。";
+  document.querySelector("#mobileReviewBoard").innerHTML = staleReviews.length ? `<div class="mobile-review-grid">${staleReviews.map((item) => `<article class="mobile-review-card ${esc(item.status || "todo")} mobile-kanban-item ${esc(item.status || "todo")}" data-open-task="${esc(item.task_id || "")}"><strong>${esc(item.title || "待复盘任务")}</strong><p>${esc(item.status === "blocked" ? "这条任务仍在阻塞，适合点进去继续私聊推动。" : "点进去看任务详情，并继续推进。")}</p><div class="mobile-review-line">${esc(taskStatusLabel(item.status))} · ${esc(msgTime(item.reviewed_at, true) || "近期")}</div></article>`).join("")}</div>` : '<div class="mobile-section-title">暂无待复盘任务</div>';
   const summary = document.querySelector("#mobileTaskSummary"), board = document.querySelector("#mobileTaskBoard");
   if (!tasks.length) {
     summary.textContent = "当前没有未完成任务，员工们手头是清空状态。";
@@ -1051,6 +1083,11 @@ document.querySelector("#mobileTaskBoard").addEventListener("click", (e) => {
 document.querySelector("#mobileBossBoard").addEventListener("click", (e) => {
   const card = e.target.closest("[data-open-task]");
   if (!card) return;
+  openMobileTaskDetail(card.dataset.openTask);
+});
+document.querySelector("#mobileReviewBoard").addEventListener("click", (e) => {
+  const card = e.target.closest("[data-open-task]");
+  if (!card || !card.dataset.openTask) return;
   openMobileTaskDetail(card.dataset.openTask);
 });
 document.querySelector("#mobileTaskSheet").addEventListener("click", (e) => {

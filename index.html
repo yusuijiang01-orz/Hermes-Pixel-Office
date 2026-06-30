@@ -30,6 +30,7 @@
         <button type="button" data-home="planner" class="active">小韩</button>
         <button type="button" data-home="researcher">小研</button>
         <button type="button" data-home="writer">小文</button>
+        <button type="button" data-home="linxiaoyan">小岩</button>
       </div>
       <div class="edit-bar" id="editBar">
         <button type="button" id="editToggle">编辑布局</button>
@@ -111,7 +112,7 @@
     </div>
     <div class="mobile-page" data-page="contacts">
       <div class="mobile-top">
-        <div class="mobile-status"><span>联系人</span><span id="mobileEmployeeCount">4 位员工</span></div>
+        <div class="mobile-status"><span>联系人</span><span id="mobileEmployeeCount">5 位员工</span></div>
         <div class="mobile-brand-row">
           <div class="mobile-brand-left">
             <div class="pixel-avatar small">录</div>
@@ -177,10 +178,25 @@
         <p id="mobileBossSummary">正在整理当前主线、待拍板阻塞和最近团队决策...</p>
         <div class="mobile-kanban" id="mobileBossBoard"></div>
       </div>
+      <div class="mobile-company-card">
+        <h3>最近交付</h3>
+        <p id="mobileDeliverySummary">正在整理过去 30 到 60 分钟的真实推进...</p>
+        <div class="mobile-kanban" id="mobileDeliveryBoard"></div>
+      </div>
+      <div class="mobile-company-card">
+        <h3>宇宙沉淀</h3>
+        <p id="mobileUniverseSummary">正在整理聊天长成了哪些世界内容...</p>
+        <div class="mobile-kanban" id="mobileUniverseBoard"></div>
+      </div>
+      <div class="mobile-company-card">
+        <h3>待复盘</h3>
+        <p id="mobileReviewSummary">正在整理还需要回看和处理的旧任务...</p>
+        <div class="mobile-kanban" id="mobileReviewBoard"></div>
+      </div>
     </div>
     <div class="mobile-bottom-nav" id="mobileBottomNav">
       <button type="button" class="active" data-tab="messages">消息<span class="nav-badge" id="mobileMsgBadge">0</span></button>
-      <button type="button" data-tab="contacts">联系人<span class="nav-badge" id="mobileContactBadge">4</span></button>
+      <button type="button" data-tab="contacts">联系人<span class="nav-badge" id="mobileContactBadge">5</span></button>
       <button type="button" data-tab="company">公司<span class="nav-badge" id="mobileCompanyBadge">1</span></button>
     </div>
     <section class="mobile-chat-screen" id="mobileChatScreen">
