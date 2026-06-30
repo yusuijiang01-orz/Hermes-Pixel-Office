@@ -90,6 +90,13 @@ function msgTime(ts, withSeconds = false) {
   if (!ts) return "";
   return new Date(ts * 1e3).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: withSeconds ? "2-digit" : void 0 });
 }
+function applyBuildVersion() {
+  const version = window.__hermesVersion || "unknown";
+  const desktop = document.querySelector("#buildVersion");
+  const mobile = document.querySelector("#mobileBuildVersion");
+  if (desktop) desktop.textContent = version;
+  if (mobile) mobile.textContent = version;
+}
 function currentWorldDate() {
   var _a2;
   if (worldBaseMs && worldReceivedMs) return new Date(worldBaseMs + (Date.now() - worldReceivedMs));
@@ -112,6 +119,7 @@ function updateWorldClockUi() {
   if (summary) summary.textContent = `${((_a2 = state.company) == null ? void 0 : _a2.studio_name) || "Hermes Pixel Works"} 正在推进「${((_b2 = state.board) == null ? void 0 : _b2.name) || "暂无项目"}」，当前为 ${clock} · ${state.world.next || "等待下一阶段"}`;
 }
 setInterval(updateWorldClockUi, 1e3);
+applyBuildVersion();
 function syncFeed(feed) {
   const items = (feed || []).slice().sort((a, b) => (a.created || 0) - (b.created || 0));
   if (!items.length) return;
