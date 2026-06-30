@@ -335,13 +335,15 @@ function renderMobileContacts() {
 }
 function renderMobileCompany() {
   var _a2, _b2, _c2, _d2, _e2, _f2;
-  const company = (state == null ? void 0 : state.company) || {}, notices = ((_a2 = company.pending_notices) == null ? void 0 : _a2.length) ? company.pending_notices : [], roles = ((_b2 = company.open_roles) == null ? void 0 : _b2.length) ? company.open_roles : [], relations = ((state == null ? void 0 : state.agents) || []).map((agent) => `${agent.short || agent.name}：${agent.relationship_summary || "暂无关系备注"}`), tasks = (company.project_tasks || []).slice();
+  const company = (state == null ? void 0 : state.company) || {}, notices = ((_a2 = company.pending_notices) == null ? void 0 : _a2.length) ? company.pending_notices : [], roles = ((_b2 = company.open_roles) == null ? void 0 : _b2.length) ? company.open_roles : [], relations = ((state == null ? void 0 : state.agents) || []).map((agent) => `${agent.short || agent.name}：${agent.relationship_summary || "暂无关系备注"}`), tasks = (company.project_tasks || []).slice(), strategyDocs = (company.strategy_documents || []).slice();
   document.querySelector("#mobileWorldLabel").textContent = ((_c2 = state == null ? void 0 : state.world) == null ? void 0 : _c2.label) || "读取中";
   document.querySelector("#mobileWeatherChip").textContent = ((_d2 = state == null ? void 0 : state.world) == null ? void 0 : _d2.weather) || "天气";
   setBadgeCount(document.querySelector("#mobileCompanyBadge"), companyPendingCount());
   document.querySelector("#mobileCompanySummary").textContent = `${company.studio_name || "Hermes Pixel Works"} 正在推进「${((_e2 = state == null ? void 0 : state.board) == null ? void 0 : _e2.name) || "暂无项目"}」，当前为 ${(state == null ? void 0 : state.world) ? worldClockText(true) : "--:--"} · ${((_f2 = state == null ? void 0 : state.world) == null ? void 0 : _f2.next) || "等待下一阶段"}`;
   document.querySelector("#mobileNotices").innerHTML = [...notices, ...roles.map((role) => `开放岗位：${role}`)].map((item) => `<li>${esc(item)}</li>`).join("") || "<li>暂无招聘通知，工位保持满编。</li>";
   document.querySelector("#mobileRelations").innerHTML = relations.map((item) => `<li>${esc(item)}</li>`).join("");
+  document.querySelector("#mobileStrategySummary").textContent = strategyDocs.length ? "下面是已经进入 Hermes 世界视图的老板规则与宇宙蓝图。它们现在会约束员工如何巡检、研究、沉淀和汇报。" : "老板规则和宇宙蓝图还没有同步进世界视图。";
+  document.querySelector("#mobileStrategyBoard").innerHTML = strategyDocs.map((doc) => `<article class="mobile-strategy-item"><strong>${esc(doc.title || "未命名文档")}</strong><p>${esc(doc.summary || "暂无摘要")}</p><div class="mobile-strategy-focus">关注点：${esc(doc.focus || "待补充")} · 文档：${esc(doc.path || "-")}</div></article>`).join("") || '<div class="mobile-section-title">暂无老板规则卡片</div>';
   const summary = document.querySelector("#mobileTaskSummary"), board = document.querySelector("#mobileTaskBoard");
   if (!tasks.length) {
     summary.textContent = "当前没有未完成任务，员工们手头是清空状态。";

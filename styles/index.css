@@ -80,6 +80,10 @@
 .mobile-kanban-tag.todo{border-color:#bbc4cb;background:#f1f4f7;color:#66747a}
 .mobile-kanban-summary{margin-top:7px;font-size:12px;line-height:1.55;color:#617076}
 .mobile-kanban-item.blocked{border-color:#d7a092;background:#fff6f1}
+.mobile-strategy-item{padding:12px;border:2px solid #c7ced6;background:#fdfbf2;box-shadow:2px 2px 0 #d7dbe3}
+.mobile-strategy-item strong{display:block;font-size:13px;line-height:1.45;color:#253137}
+.mobile-strategy-item p{margin-top:6px !important}
+.mobile-strategy-focus{margin-top:8px;font-size:11px;line-height:1.6;color:#6a777c}
     .mobile-row-buttons{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
     .mobile-ghost-btn,.mobile-solid-btn{height:34px;padding:0 12px;border:3px solid #354349;font-weight:800}
     .mobile-ghost-btn{background:#f7f4ea;color:#253137}

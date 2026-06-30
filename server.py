@@ -648,6 +648,39 @@ def visible_stale_project_reviews(items, tasks, limit=12):
     return visible[-limit:]
 
 
+def strategy_documents_payload():
+    return [
+        {
+            "id": "universe-prd",
+            "title": "像素宇宙 PRD",
+            "summary": "把 Hermes 定义成持续产出小游戏与世界内容的母宇宙，先锁定 Mushroom Runner v0.1。", 
+            "focus": "主线目标 / 首批小游戏 / 基础关卡 / 宇宙入口",
+            "path": "docs/hermes-pixel-universe-prd-v1.md",
+        },
+        {
+            "id": "active-patrol",
+            "title": "主动巡检机制",
+            "summary": "要求 4 个员工每 30 到 60 分钟至少有一次可见交付，并主动查资料、主动沉淀、主动汇报。",
+            "focus": "巡检节奏 / 资料研究 / 聊天转任务 / 自我生长",
+            "path": "docs/active-patrol-and-research-prd.md",
+        },
+        {
+            "id": "world-kanban-2",
+            "title": "世界看板 2.0",
+            "summary": "把任务、研究、沉淀、阻塞和私聊处理入口集中到老板面板里，直接看到世界新增了什么。",
+            "focus": "老板视图 / 研究记录 / 宇宙沉淀 / 阻塞处理",
+            "path": "docs/world-kanban-2.0-structure.md",
+        },
+        {
+            "id": "operating-rules",
+            "title": "运行规则",
+            "summary": "明确小游戏可以独立开发，但正式入口必须锚定在宇宙中，并且可返回母世界。",
+            "focus": "交付规则 / 入口约束 / 独立开发边界 / 群聊到执行",
+            "path": "docs/company-operating-rules.md",
+        },
+    ]
+
+
 def remember_boss_message(message, company_state):
     text = str(message or "").strip()
     if not text:
@@ -1960,6 +1993,7 @@ def fast_state():
             "team_decisions": visible_team_decisions(company_state.get("team_decisions") or []),
             "stale_project_reviews": visible_stale_project_reviews(company_state.get("stale_project_reviews") or [], tasks),
             "project_tasks": project_tasks,
+            "strategy_documents": strategy_documents_payload(),
         },
     }
 
@@ -2510,6 +2544,7 @@ def get_state():
             "team_decisions": visible_team_decisions(company_state.get("team_decisions") or []),
             "stale_project_reviews": visible_stale_project_reviews(company_state.get("stale_project_reviews") or [], tasks),
             "project_tasks": project_tasks,
+            "strategy_documents": strategy_documents_payload(),
         },
     }
 
