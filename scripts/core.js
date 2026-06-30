@@ -15,8 +15,8 @@ if ("serviceWorker" in navigator) {
     }
   }, { once: true });
 }
-const roles = { default: { color: "#4aa6a0", skin: "#e7b68b", hair: "#27353a" }, planner: { color: "#e7b34d", skin: "#efc49d", hair: "#4b302b" }, researcher: { color: "#e45a9c", skin: "#c98e69", hair: "#301f35" }, writer: { color: "#a878d1", skin: "#efbd9d", hair: "#3b5d50" } };
-const spots = { default: [0.15, 0.34], planner: [0.57, 0.34], researcher: [0.15, 0.64], writer: [0.57, 0.64] }, agents = {};
+const roles = { default: { color: "#4aa6a0", skin: "#e7b68b", hair: "#27353a" }, planner: { color: "#e7b34d", skin: "#efc49d", hair: "#4b302b" }, researcher: { color: "#e45a9c", skin: "#c98e69", hair: "#301f35" }, writer: { color: "#a878d1", skin: "#efbd9d", hair: "#3b5d50" }, linxiaoyan: { color: "#6e8fd6", skin: "#efbd9d", hair: "#2f3446" } };
+const spots = { default: [0.15, 0.34], planner: [0.57, 0.34], researcher: [0.15, 0.64], writer: [0.57, 0.64], linxiaoyan: [0.36, 0.34] }, agents = {};
 let neighborhood = false;
 let state = null, selected = null, last = 0, nextFeed = 3500, chatMode = "private", cameraMode = new URLSearchParams(location.search).get("camera") || "auto", homeView = new URLSearchParams(location.search).get("home") || "planner", currentRoom = new URLSearchParams(location.search).get("room") || "office";
 let feedInitialized = false, lastFeedCreated = 0;
@@ -39,7 +39,8 @@ const fallbackMentions = [
   { id: "default", short: "阿默", name: "制作人 阿默", role: "主程 / 制作人" },
   { id: "planner", short: "小韩", name: "策划主编 小韩", role: "主管 / 游戏策划" },
   { id: "researcher", short: "小研", name: "研究员 小研", role: "玩法研究" },
-  { id: "writer", short: "小文", name: "文案 小文", role: "叙事与文案" }
+  { id: "writer", short: "小文", name: "文案 小文", role: "叙事与文案" },
+  { id: "linxiaoyan", short: "小岩", name: "品牌内容 小岩", role: "品牌内容 / 对外表达" }
 ];
 let pendingMessages = [], refreshTimer = 0, fastRefreshUntil = 0, realtimeSource = null, realtimeConnected = false, realtimeRetryTimer = 0, worldBaseMs = 0, worldReceivedMs = 0;
 const sendLocks = /* @__PURE__ */ new Set();
@@ -126,7 +127,7 @@ function pixelSticker(name, face, main = "#f0c85a", accent = "#263238") {
     cool: ["M14 24h16v8H14z M34 24h16v8H34z M30 27h4v3h-4z M24 43h14v4H24z"],
     shock: ["M18 24h5v5h-5z M39 24h5v5h-5z M27 39h9v12h-9z"],
     sleep: ["M18 27h5v4h-5z M37 27h5v4h-5z M25 43h13v4H25z M44 12h9v4h-5v4h5v4h-10v-4h5v-4h-4z"],
-    thumb: ["M16 30h9v18h-9z M25 27h9V16h7v11h9v9h-5v12H25z"],
+    thumb: "M26 34h4v6h-4z M30 38h10v2h-10z M30 40h10v8h-10z",
     coffee: ["M18 22h24v22H18z M42 27h8v10h-8z M23 26h14v4H23z M23 35h14v4H23z"]
   };
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" shape-rendering="crispEdges"><rect width="64" height="64" fill="none"/><path fill="${accent}" d="M14 12h36v4h4v36h-4v4H14v-4h-4V16h4z"/><path fill="${main}" d="M18 16h28v4h4v28h-4v4H18v-4h-4V20h4z"/><path fill="#fff3c7" d="M22 18h18v4H22z"/><path fill="${accent}" d="${moods[face] || moods.smile}"/></svg>`;
@@ -416,65 +417,523 @@ function corgi(x, y, t) {
   ctx.restore();
 }
 function drawGameRoom(w, h, t) {
-  px(0, 0, w, h, "#12141a");
-  px(0, h * 0.7, w, h * 0.3, "#2a2a34");
-  for (let y = Math.floor(h * 0.7); y < h; y += 18) {
-    for (let x = 0; x < w; x += 36) {
-      px(x + y % 36 * 0.5, y, 33, 15, (x + y) % 72 ? "#2a2a34" : "#24242e");
+  // === 像素小地牢 ===
+  // 地面
+  px(0, h * 0.15, w, h * 0.85, "#1a1c20");
+  for (let y = h * 0.15; y < h; y += 20) {
+    for (let x = 0; x < w; x += 20) {
+      const off = Math.floor(y / 20) % 2 * 10;
+      px(x + off, y, 19, 19, (x + y) % 40 ? "#202226" : "#1e2024");
     }
   }
-  px(0, 0, w, h * 0.15, "#1a1a24");
-  px(0, h * 0.15, w, 3, "#2a2a34");
-  for (let i = 0; i < 5; i++) {
-    const lx = w * 0.1 + i * w * 0.22, ly = 18;
-    ctx.save();
-    ctx.globalCompositeOperation = "screen";
-    const g = ctx.createRadialGradient(lx, ly + 10, 2, lx, ly + 10, 60);
-    g.addColorStop(0, "rgba(244,201,93,0.25)");
-    g.addColorStop(1, "rgba(244,201,93,0)");
-    ctx.fillStyle = g;
-    ctx.fillRect(lx - 60, 0, 120, 80);
-    ctx.globalCompositeOperation = "source-over";
-    ctx.restore();
-    px(lx - 6, ly, 12, 4, "#f4c95d");
+  // 天花板管道
+  for (let x = 20; x < w; x += 80) {
+    px(x, 0, 10, 10, "#2a2a30");
+    px(x + 10, 3, 6, 6, "#3a3a40");
   }
-  ctx.fillStyle = "#f4c95d";
-  ctx.font = "bold 18px Microsoft YaHei";
-  ctx.textAlign = "center";
-  ctx.fillText("走廊", w / 2, h * 0.35);
-  const leftDoorX = w * 0.22, leftDoorY = h * 0.28, leftDoorW = w * 0.24, leftDoorH = h * 0.38;
-  px(leftDoorX, leftDoorY, leftDoorW, leftDoorH, "#3a3a48");
-  px(leftDoorX + 4, leftDoorY + 4, leftDoorW - 8, leftDoorH - 8, "#2a3a3a");
-  px(leftDoorX + leftDoorW - 30, leftDoorY + leftDoorH / 2 - 2, 8, 8, "#d7c6a0");
-  ctx.fillStyle = "#88efc0";
-  ctx.font = "bold 13px Microsoft YaHei";
-  ctx.textAlign = "center";
-  ctx.fillText("游戏模式", leftDoorX + leftDoorW / 2, leftDoorY + 18);
-  ctx.fillStyle = "#6ec3a0";
-  ctx.font = "11px Microsoft YaHei";
-  ctx.fillText("进入", leftDoorX + leftDoorW / 2, leftDoorY + 36);
-  const rightDoorX = w * 0.54, rightDoorY = h * 0.28, rightDoorW = w * 0.24, rightDoorH = h * 0.38;
-  px(rightDoorX, rightDoorY, rightDoorW, rightDoorH, "#3a3a48");
-  px(rightDoorX + 4, rightDoorY + 4, rightDoorW - 8, rightDoorH - 8, "#2a3a3a");
-  px(rightDoorX + rightDoorW - 30, rightDoorY + rightDoorH / 2 - 2, 8, 8, "#d7c6a0");
-  ctx.fillStyle = "#f4c95d";
-  ctx.font = "bold 13px Microsoft YaHei";
-  ctx.textAlign = "center";
-  ctx.fillText("公司办公室", rightDoorX + rightDoorW / 2, rightDoorY + 18);
-  ctx.fillStyle = "#f4c95d";
-  ctx.font = "11px Microsoft YaHei";
-  ctx.fillText("返回", rightDoorX + rightDoorW / 2, rightDoorY + 36);
-  ctx.fillStyle = "#5a6a6a";
-  ctx.font = "10px Microsoft YaHei";
-  ctx.textAlign = "center";
-  ctx.fillText("← 老板办公室    洗手间 →", w / 2, h * 0.72);
-  for (let i = 0; i < 3; i++) {
-    const px2 = w * 0.1 + i * w * 0.35, py = h * 0.85;
-    px(px2, py, 6, 6, "#3a4a5a");
-    px(px2 + 8, py, 6, 6, "#3a4a5a");
-    px(px2 + 4, py + 8, 6, 6, "#3a4a5a");
+  // 墙壁
+  px(0, 0, w, h * 0.15, "#2a2a32");
+  px(0, 0, 6, h, "#222428");
+  px(w - 6, 0, 6, h, "#222428");
+  // 墙上火把
+  const torchFlicker = Math.sin(t / 120) * 3 + Math.sin(t / 77) * 2;
+  const torchX = w * 0.15, torchY = h * 0.18;
+  px(torchX, torchY, 6, 18, "#5a4a3a");
+  px(torchX + 2, torchY - 4, 2, 4, "#f4c95d");
+  px(torchX + 4, torchY - 6, 2, 3, "#f7e08a");
+  // 火把光照
+  ctx.save();
+  const glow = ctx.createRadialGradient(torchX + 3, torchY - 2, 2, torchX + 3, torchY + 10, 120 + torchFlicker);
+  glow.addColorStop(0, "rgba(244,201,93,0.08)");
+  glow.addColorStop(1, "rgba(244,201,93,0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(torchX - 100, torchY - 100, 200, 200);
+  ctx.restore();
+  // 墙壁纹理
+  for (let i = 0; i < 8; i++) {
+    const bx = w * 0.3 + i * (w * 0.06);
+    px(bx, h * 0.08, 12, 6, "#222428");
   }
   ctx.textAlign = "left";
+}
+
+// === 像素小地牢 demo: 可玩角色 + 敌人 + hit-stop 打击感 ===
+const DUNGEON = {
+  groundY: 0,        // ground y (set at init)
+  player: { x:0, y:0, hp:100, atk:25, dir:1, attackCD:0, attackAnim:0, hitStop:0, dead:false, score:0, kills:0 },
+  enemies: [],
+  particles: [],
+  hitStopFrames: 0,  // frame freeze counter
+  hitStopTimer: 0,
+  screenShake: { x:0, y:0, intensity:0 },
+  floor: 1,
+  init() {
+    this.groundY = h * 0.7;
+    const p = this.player;
+    p.x = w * 0.3; p.y = this.groundY; p.hp = 100; p.dead = false;
+    p.score = 0; p.kills = 0;
+    this.enemies = [];
+    this.particles = [];
+    this.floor = 1;
+    this.spawnWave(1);
+  },
+  spawnWave(floor) {
+    const n = Math.min(2 + floor, 5);
+    for (let i = 0; i < n; i++) {
+      const slot = i / n;
+      this.enemies.push({
+        x: w * 0.55 + slot * w * 0.35,
+        y: this.groundY,
+        hp: 20 + floor * 10,
+        maxHp: 20 + floor * 10,
+        atk: 5 + floor * 2,
+        dir: -1,
+        state: "idle", // idle, chase, attack, hitstun
+        stateTimer: 0,
+        hitstunTimer: 0,
+        animTimer: 0,
+        dead: false,
+        deathTimer: 0,
+        attackCD: 0,
+        aggroRange: 120 + floor * 15,
+      });
+    }
+  },
+  attack() {
+    const p = this.player;
+    if (p.dead || p.attackCD > 0 || p.hitStop > 0) return;
+    p.attackCD = 200;
+    p.attackAnim = 300;
+    // hit-test enemies in front
+    let hit = false;
+    for (const e of this.enemies) {
+      if (e.dead) continue;
+      const dx = e.x - p.x;
+      if ((p.dir > 0 && dx > -20 && dx < 70) || (p.dir < 0 && dx < 20 && dx > -70)) {
+        e.hp -= p.atk;
+        e.state = "hitstun";
+        e.hitstunTimer = 150;
+        e.stateTimer = 150;
+        e.dir = -p.dir;
+        // screen shake
+        this.screenShake.intensity = 4;
+        // particle burst
+        for (let i = 0; i < 6; i++) {
+          this.particles.push({
+            x: e.x, y: e.y - 20,
+            vx: (Math.random() - 0.5) * 3,
+            vy: -Math.random() * 2 - 1,
+            life: 200 + Math.random() * 150,
+            color: i % 3 === 0 ? "#f4c95d" : "#e76f51",
+            size: 2 + Math.random() * 3,
+          });
+        }
+        // hit-stop: freeze for 80ms = ~5 frames at 60fps
+        this.hitStopFrames = 5;
+        this.hitStopTimer = Date.now();
+        hit = true;
+        break; // one hit per swing
+      }
+    }
+    if (!hit) {
+      p.attackCD = 120; // shorter CD on miss
+    }
+  },
+  jump() {
+    const p = this.player;
+    if (p.dead) return;
+    if (p.y >= this.groundY - 1) {
+      p.jumpVel = -5;
+    }
+  },
+  update(dt, t) {
+    const p = this.player;
+    if (p.dead) return;
+    // hit-stop
+    if (this.hitStopFrames > 0) {
+      this.hitStopFrames--;
+      // still render but skip all logic
+      return;
+    }
+    // attack CD
+    if (p.attackCD > 0) p.attackCD = Math.max(0, p.attackCD - dt);
+    if (p.attackAnim > 0) p.attackAnim -= dt;
+    // jump physics
+    if (p.jumpVel !== undefined) {
+      p.y += p.jumpVel;
+      p.jumpVel = (p.jumpVel || 0) + 0.3;
+      if (p.y >= this.groundY) { p.y = this.groundY; p.jumpVel = 0; }
+    }
+    // screen shake decay
+    if (this.screenShake.intensity > 0) {
+      this.screenShake.x = (Math.random() - 0.5) * this.screenShake.intensity;
+      this.screenShake.y = (Math.random() - 0.5) * this.screenShake.intensity;
+      this.screenShake.intensity *= 0.85;
+      if (this.screenShake.intensity < 0.3) this.screenShake.intensity = 0;
+    } else { this.screenShake.x = 0; this.screenShake.y = 0; }
+    // particles
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const pt = this.particles[i];
+      pt.x += pt.vx; pt.y += pt.vy; pt.vy += 0.08;
+      pt.life -= dt;
+      if (pt.life <= 0) this.particles.splice(i, 1);
+    }
+    // enemy AI
+    for (const e of this.enemies) {
+      if (e.dead) {
+        e.deathTimer += dt;
+        continue;
+      }
+      if (e.attackCD > 0) e.attackCD = Math.max(0, e.attackCD - dt);
+      if (e.hitstunTimer > 0) {
+        e.hitstunTimer -= dt;
+        e.stateTimer = e.hitstunTimer;
+        continue;
+      }
+      const dx = p.x - e.x;
+      const dist = Math.abs(dx);
+      if (dist < e.aggroRange) {
+        e.state = "chase";
+        e.animTimer += dt;
+        if (dist < 30 && e.attackCD <= 0) {
+          e.state = "attack";
+          e.stateTimer = 200;
+          e.attackCD = 800;
+          e.dir = dx > 0 ? 1 : -1;
+          // enemy attacks player
+          if (Math.random() < 0.6) {
+            p.hp = Math.max(0, p.hp - e.atk);
+            this.screenShake.intensity = 3;
+            for (let i = 0; i < 4; i++) {
+              this.particles.push({
+                x: p.x, y: p.y - 18,
+                vx: (Math.random() - 0.5) * 2,
+                vy: -Math.random() * 1.5,
+                life: 150 + Math.random() * 100,
+                color: "#e76f51",
+                size: 2 + Math.random() * 2,
+              });
+            }
+          }
+        }
+      } else {
+        e.state = "idle";
+        e.stateTimer = 1000 + Math.random() * 2000;
+        e.animTimer = 0;
+      }
+      if (e.state === "chase" && dist > 25) {
+        e.x += Math.sign(dx) * 0.4;
+        e.x = Math.max(w * 0.15, Math.min(w * 0.85, e.x));
+      }
+      if (e.state === "attack") {
+        e.stateTimer -= dt;
+        if (e.stateTimer <= 0) { e.state = "idle"; }
+      }
+    }
+    // check deaths
+    for (let i = this.enemies.length - 1; i >= 0; i--) {
+      if (!this.enemies[i].dead && this.enemies[i].hp <= 0) {
+        this.enemies[i].dead = true;
+        this.enemies[i].deathTimer = 0;
+        p.score += 10;
+        p.kills++;
+        this.hitStopFrames = 3;
+        this.screenShake.intensity = 5;
+      }
+    }
+    // check wave clear
+    const aliveEnemies = this.enemies.filter(e => !e.dead && e.hp > 0);
+    const deadEnemies = this.enemies.filter(e => e.dead || e.hp <= 0);
+    if (deadEnemies.length > 0 && deadEnemies.length >= this.enemies.length) {
+      this.floor++;
+      this.enemies = [];
+      this.spawnWave(this.floor);
+    }
+    // player death
+    if (p.hp <= 0) {
+      p.dead = true;
+    }
+  },
+  drawPlayer(p, w, h, t) {
+    const y = p.y;
+    const bob = Math.sin(t / 300) * 2;
+    const walk = Math.abs(p.x - (p.prevX || p.x)) > 0.5 ? 1 : 0;
+    p.prevX = p.x;
+    const walkOff = walk ? Math.sin(t / 80) * 3 : 0;
+    ctx.save();
+    if (p.dir < 0) ctx.translate(p.x * 2, 0);
+    // shadow
+    px(p.x - 8, y + 2, 16, 4, "rgba(0,0,0,0.3)");
+    // body
+    px(p.x - 7, y - 18, 14, 18, "#4a6a7a");
+    px(p.x - 5, y - 14, 10, 10, "#5a7a8a");
+    // head
+    px(p.x - 5, y - 28, 10, 10, "#f0c888");
+    px(p.x - 3, y - 26, 2, 2, "#2a3a40");
+    px(p.x + 1, y - 26, 2, 2, "#2a3a40");
+    px(p.x - 2, y - 22, 4, 2, "#d4a470");
+    // helmet
+    px(p.x - 6, y - 30, 12, 4, "#6a7a80");
+    px(p.x - 4, y - 32, 8, 3, "#7a8a90");
+    // legs
+    px(p.x - 5, y, 3, 3, "#3a4a50");
+    px(p.x + 2, y, 3, 3, "#3a4a50");
+    if (walk) {
+      px(p.x - 5 + walkOff, y, 4, 3, "#2a3a40");
+      px(p.x + 2 - walkOff, y, 4, 3, "#2a3a40");
+    }
+    // sword
+    const swordX = p.x + 10, swordY = y - 20;
+    if (p.attackAnim > 0) {
+      // attack swing
+      const swingAngle = (300 - p.attackAnim) / 300;
+      const swingY = swordY - swingAngle * 30;
+      px(swordX, swordY - 5, 2, 20, "#c0c0c0");
+      px(swordX - 2, swordY - 6, 6, 3, "#808080");
+      // slash arc
+      ctx.save();
+      ctx.strokeStyle = "rgba(244,201,93,0.5)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(swordX, swordY - 10, 25, -Math.PI * 0.6 * swingAngle, Math.PI * 0.3 * swingAngle);
+      ctx.stroke();
+      ctx.restore();
+    } else {
+      // idle sword
+      px(swordX, swordY - 5, 2, 18, "#c0c0c0");
+      px(swordX - 2, swordY - 6, 6, 3, "#808080");
+    }
+    ctx.restore();
+    // HP bar
+    const hpPct = Math.max(0, p.hp / 100);
+    const barW = 50, barH = 6;
+    const barX = p.x - barW / 2, barY = y - 42;
+    px(barX, barY, barW, barH, "#3a2020");
+    px(barX + 1, barY + 1, (barW - 2) * hpPct, barH - 2, hpPct > 0.3 ? "#e76f51" : "#ff3333");
+  },
+  drawEnemy(e, t) {
+    const y = e.y;
+    if (e.dead) {
+      if (e.deathTimer < 400) {
+        // death flash
+        const flash = 8 - Math.floor(e.deathTimer / 50);
+        for (let i = 0; i < flash; i++) {
+          px(e.x - 8 + i * 3, y - 24, 3, 4, e.dead ? "#ff5555" : "#e76f51");
+        }
+      }
+      return;
+    }
+    const bob = e.stateTimer > 0 && e.state === "hitstun" ? Math.sin(e.deathTimer / 20) * 4 : Math.sin(t / 400) * 1;
+    ctx.save();
+    if (e.dir < 0) ctx.translate(e.x * 2, 0);
+    // body
+    px(e.x - 6, y - 20 + bob, 12, 20, e.state === "hitstun" ? "#ff8888" : "#6a4a3a");
+    // head
+    px(e.x - 4, y - 28 + bob, 8, 8, "#8a6a5a");
+    // eyes
+    px(e.x - 2, y - 26 + bob, 2, 2, e.state === "attack" ? "#ff0000" : "#4a3a2a");
+    px(e.x + 2, y - 26 + bob, 2, 2, e.state === "attack" ? "#ff0000" : "#4a3a2a");
+    // mouth
+    if (e.state === "attack") {
+      px(e.x - 1, y - 21 + bob, 4, 2, "#4a2a2a");
+    }
+    // weapon
+    px(e.x + 7, y - 16 + bob, 2, 12, "#5a5a5a");
+    px(e.x + 5, y - 18 + bob, 6, 3, "#3a3a3a");
+    // legs
+    const walkOff = Math.sin(t / 200) * 2;
+    px(e.x - 4, y + bob, 3, 3, "#4a3a2a");
+    px(e.x + 1, y + bob, 3, 3, "#4a3a2a");
+    ctx.restore();
+    // HP bar
+    if (e.hp < e.maxHp) {
+      const hpPct = e.hp / e.maxHp;
+      const barW = 30, barH = 4;
+      const barX = e.x - barW / 2, barY = y - 36 + bob;
+      px(barX, barY, barW, barH, "#2a1a1a");
+      px(barX + 1, barY + 1, (barW - 2) * hpPct, barH - 2, "#e76f51");
+    }
+  },
+  drawParticles() {
+    for (const pt of this.particles) {
+      const alpha = Math.max(0, pt.life / 350);
+      ctx.globalAlpha = alpha;
+      px(pt.x, pt.y, pt.size, pt.size, pt.color);
+    }
+    ctx.globalAlpha = 1;
+  },
+  drawUI(w, h, t) {
+    const p = this.player;
+    ctx.fillStyle = "#f4c95d";
+    ctx.font = "bold 11px monospace";
+    ctx.textAlign = "left";
+    ctx.fillText("LV." + this.floor + "  击杀:" + p.kills + "  分数:" + p.score, 10, 24);
+    ctx.textAlign = "center";
+    if (p.dead) {
+      ctx.fillStyle = "rgba(0,0,0,0.7)";
+      ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = "#e76f51";
+      ctx.font = "bold 20px Microsoft YaHei";
+      ctx.fillText("倒地了", w / 2, h / 2);
+      ctx.fillStyle = "#88efc0";
+      ctx.font = "12px Microsoft YaHei";
+      ctx.fillText("按空格或ESC返回办公室", w / 2, h / 2 + 30);
+    }
+    // hit-stop overlay
+    if (this.hitStopFrames > 0) {
+      ctx.fillStyle = "rgba(255,255,255,0.15)";
+      ctx.fillRect(0, 0, w, h);
+    }
+    // controls hint
+    ctx.fillStyle = "#5a6a6a";
+    ctx.font = "9px Microsoft YaHei";
+    ctx.textAlign = "right";
+    ctx.fillText("← → 移动  空格 攻击  上/跳 跳跃", w - 10, h - 8);
+  }
+};
+
+function drawDungeon(w, h, t) {
+  // background
+  px(0, 0, w, h, "#1a1c20");
+  // floor
+  const groundY = h * 0.7;
+  for (let y = groundY; y < h; y += 20) {
+    for (let x = 0; x < w; x += 20) {
+      const off = Math.floor(y / 20) % 2 * 10;
+      px(x + off, y, 19, 19, (x + y) % 40 ? "#222428" : "#1e2024");
+    }
+  }
+  // walls
+  px(0, 0, 8, h, "#222428");
+  px(w - 8, 0, 8, h, "#222428");
+  // ceiling
+  px(0, 0, w, 12, "#2a2a32");
+  for (let x = 20; x < w; x += 80) {
+    px(x, 0, 10, 12, "#2a2a30");
+    px(x + 10, 3, 6, 6, "#3a3a40");
+  }
+  // torch
+  const torchX = w * 0.12, torchY = groundY - 5;
+  px(torchX, torchY - 8, 5, 14, "#5a4a3a");
+  px(torchX + 1, torchY - 12, 3, 5, "#f4c95d");
+  px(torchX + 2, torchY - 15, 2, 4, "#f7e08a");
+  ctx.save();
+  const glow = ctx.createRadialGradient(torchX + 2, torchY - 8, 2, torchX + 2, torchY + 10, 140);
+  glow.addColorStop(0, "rgba(244,201,93,0.06)");
+  glow.addColorStop(1, "rgba(244,201,93,0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(torchX - 120, torchY - 140, 240, 280);
+  ctx.restore();
+  // decorative wall sconces
+  for (let i = 1; i <= 3; i++) {
+    const sx = w * (0.35 + i * 0.15);
+    px(sx, groundY - 5, 3, 10, "#5a4a3a");
+    px(sx - 1, groundY - 8, 5, 4, "#f4c95d44");
+  }
+  // draw particles (behind characters)
+  DUNGEON.drawParticles();
+  // draw enemies
+  for (const e of DUNGEON.enemies) drawDungeonEnemy(e, t, groundY);
+  // draw player
+  drawDungeonPlayer(DUNGEON.player, w, groundY, t);
+  // UI
+  drawDungeonUI(w, h, t);
+}
+
+function drawDungeonPlayer(p, w, groundY, t) {
+  const y = p.y;
+  ctx.save();
+  if (p.dir < 0) ctx.translate(p.x * 2, 0);
+  // shadow
+  px(p.x - 8, groundY + 2, 16, 4, "rgba(0,0,0,0.3)");
+  // body
+  px(p.x - 7, y - 18, 14, 18, "#4a6a7a");
+  px(p.x - 5, y - 14, 10, 10, "#5a7a8a");
+  // head
+  px(p.x - 5, y - 28, 10, 10, "#f0c888");
+  px(p.x - 3, y - 26, 2, 2, "#2a3a40");
+  px(p.x + 1, y - 26, 2, 2, "#2a3a40");
+  // helmet
+  px(p.x - 6, y - 30, 12, 4, "#6a7a80");
+  px(p.x - 4, y - 32, 8, 3, "#7a8a90");
+  // legs
+  px(p.x - 5, groundY, 3, 3, "#3a4a50");
+  px(p.x + 2, groundY, 3, 3, "#3a4a50");
+  // sword
+  const swordX = p.x + 10, swordY = y - 16;
+  if (p.attackAnim > 0) {
+    px(swordX, swordY, 2, 16, "#c0c0c0");
+    px(swordX - 2, swordY - 1, 6, 3, "#808080");
+    ctx.save();
+    ctx.strokeStyle = "rgba(244,201,93,0.6)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(swordX, swordY - 5, 20, -Math.PI * 0.5, Math.PI * 0.5);
+    ctx.stroke();
+    ctx.restore();
+  } else {
+    px(swordX, swordY, 2, 14, "#c0c0c0");
+    px(swordX - 2, swordY - 1, 6, 3, "#808080");
+  }
+  ctx.restore();
+  // HP bar
+  const hpPct = Math.max(0, p.hp / 100);
+  const barW = 50, barH = 5;
+  const barX = p.x - barW / 2, barY = y - 38;
+  px(barX, barY, barW, barH, "#2a1a1a");
+  px(barX + 1, barY + 1, (barW - 2) * hpPct, barH - 2, hpPct > 0.3 ? "#e76f51" : "#ff3333");
+}
+
+function drawDungeonEnemy(e, t, groundY) {
+  if (e.dead) return;
+  const y = e.y;
+  ctx.save();
+  if (e.dir < 0) ctx.translate(e.x * 2, 0);
+  // body
+  px(e.x - 6, y - 20, 12, 20, e.state === "hitstun" ? "#ff8888" : "#6a4a3a");
+  // head
+  px(e.x - 4, y - 28, 8, 8, "#8a6a5a");
+  // eyes
+  px(e.x - 2, y - 26, 2, 2, e.state === "attack" ? "#ff0000" : "#4a3a2a");
+  px(e.x + 2, y - 26, 2, 2, e.state === "attack" ? "#ff0000" : "#4a3a2a");
+  // weapon
+  px(e.x + 7, y - 16, 2, 12, "#5a5a5a");
+  px(e.x + 5, y - 18, 6, 3, "#3a3a3a");
+  // legs
+  px(e.x - 4, groundY, 3, 3, "#4a3a2a");
+  px(e.x + 1, groundY, 3, 3, "#4a3a2a");
+  ctx.restore();
+  // HP bar
+  if (e.hp < e.maxHp) {
+    const hpPct = e.hp / e.maxHp;
+    const barW = 28, barH = 3;
+    const barX = e.x - barW / 2, barY = y - 36;
+    px(barX, barY, barW, barH, "#2a1a1a");
+    px(barX + 1, barY + 1, (barW - 2) * hpPct, barH - 2, "#e76f51");
+  }
+}
+
+function drawDungeonUI(w, h, t) {
+  const p = DUNGEON.player;
+  ctx.fillStyle = "#f4c95d";
+  ctx.font = "bold 10px monospace";
+  ctx.textAlign = "left";
+  ctx.fillText("LV." + DUNGEON.floor + "  kills:" + p.kills + " score:" + p.score, 8, 18);
+  ctx.textAlign = "right";
+  ctx.fillStyle = "#5a6a6a";
+  ctx.font = "8px Microsoft YaHei";
+  ctx.fillText("← → 移动  空格攻击  上跳跃  ESC返回", w - 8, 18);
+}
+
+// game room state
+let gameRoomState = { active: false, started: false };
+
+function initGameRoom() {
+  if (!gameRoomState.started) {
+    DUNGEON.init();
+    gameRoomState.started = true;
+  }
+  gameRoomState.active = true;
 }
 function drawBossOffice(w, h, t) {
   var _a;
@@ -655,6 +1114,7 @@ const homeThemes = {
   planner: { name: "小韩", wall: "#d8c5a1", floor: "#956f49", rug: "#a3533d", sofa: "#bd704d", bed: "#cf9d54", note: "明快、讲效率的行动派" },
   researcher: { name: "小研", wall: "#b7c8d1", floor: "#6e7a78", rug: "#805b83", sofa: "#536d79", bed: "#735d86", note: "资料很多的观察实验室" },
   writer: { name: "小文", wall: "#d7c7cc", floor: "#8a705f", rug: "#557564", sofa: "#846676", bed: "#657c70", note: "柔和、有故事感的阅读之家" }
+  , linxiaoyan: { name: "小岩", wall: "#d7dce8", floor: "#86715f", rug: "#5a6782", sofa: "#7b879e", bed: "#697487", note: "克制、干净、有审美留白的城市公寓" }
 };
 function homeActivity(a) {
   var _a;
@@ -662,7 +1122,7 @@ function homeActivity(a) {
   if (a && !["home", "home_remote"].includes(a.presence)) return "away";
   if (hour < 7) return "sleep";
   if (remote) return "remote";
-  const lists = { default: ["console", "tv", "phone"], planner: ["treadmill", "tv", "phone"], researcher: ["read", "console", "phone"], writer: ["read", "tv", "phone"] }, slot = Math.floor(Date.now() / 9e5 + ((a == null ? void 0 : a.seed) || 0)) % 3;
+  const lists = { default: ["console", "tv", "phone"], planner: ["treadmill", "tv", "phone"], researcher: ["read", "console", "phone"], writer: ["read", "tv", "phone"], linxiaoyan: ["read", "tv", "phone"] }, slot = Math.floor(Date.now() / 9e5 + ((a == null ? void 0 : a.seed) || 0)) % 3;
   return lists[(a == null ? void 0 : a.id) || homeView][slot];
 }
 function label(text, x, y, c = "#eef4ef") {
@@ -969,6 +1429,11 @@ const savedNeeds = (() => {
 })();
 let lastFrame = 0, lastSave = 0, lastPanel = 0;
 let editMode = false, editSelected = null, editDragging = false, editDragOff = { x: 0, y: 0 }, editSelectedStart = null;
+let GRID_SIZE = 16;
+function gridSnap(val) {
+  return Math.round(val / GRID_SIZE) * GRID_SIZE;
+}
+
 const SCENE_OBJECTS = [
   { id: "monitor", name: "显示器", desc: "屏幕还亮着，阿默昨晚的调试日志没关", w: 52, h: 34, getDefault: (w, h) => {
     return { x: w * 0.08, y: h * 0.18 };
@@ -1035,6 +1500,11 @@ const SCENE_OBJECTS = [
   }, collides: true, draw: (x, y) => {
     desk(x, y, "writer");
   } },
+  { id: "desk_linxiaoyan", name: "小岩工位", desc: "便签、咖啡和语气修订同时在线", w: 150, h: 62, getDefault: (w, h) => {
+    return { x: w * 0.36 - 20, y: h * 0.34 - 12 };
+  }, collides: true, draw: (x, y) => {
+    desk(x, y, "linxiaoyan");
+  } },
   { id: "breakbar", name: "水吧", desc: "咖啡机、制冰机、打奶泡设备——老板说这是公司的门面", w: 178, h: 88, getDefault: (w, h) => {
     return { x: w * 0.785, y: h * 0.495 };
   }, collides: true, draw: (x, y) => {
@@ -1096,7 +1566,7 @@ function checkCollision(objId, newX, newY, w, h) {
     if (other.id === objId || !other.collides) continue;
     const op = scenePositions[other.id];
     if (!op) continue;
-    if (rectsOverlap(newX, newY, w, h, op.x, op.y, other.w, other.h)) {
+    if (rectsOverlap(newX, newY, w, h, gridSnap(op.x), gridSnap(op.y), other.w, other.h)) {
       return other.name;
     }
   }
@@ -1136,8 +1606,8 @@ function exportScenePositions(input = scenePositions, w = canvas.clientWidth || 
     const pos = input[obj.id];
     if (!pos) continue;
     const maxX = Math.max(0, w - obj.w), maxY = Math.max(0, h - obj.h);
-    const x = Math.min(maxX, Math.max(0, Number(pos.x) || 0));
-    const y = Math.min(maxY, Math.max(0, Number(pos.y) || 0));
+    const x = gridSnap(Math.min(maxX, Math.max(0, Number(pos.x) || 0)));
+    const y = gridSnap(Math.min(maxY, Math.max(0, Number(pos.y) || 0)));
     clean[obj.id] = {
       x,
       y,
@@ -1156,6 +1626,8 @@ function sanitizeScenePositions(input, w = canvas.clientWidth || 960, h = canvas
     if (!obj || !pos) continue;
     const denorm = denormalizeScenePosition(pos, obj, w, h);
     if (!denorm) continue;
+    denorm.x = gridSnap(denorm.x);
+    denorm.y = gridSnap(denorm.y);
     safe[id] = denorm;
   }
   return safe;
@@ -1187,11 +1659,13 @@ loadScenePositions();
 function getSceneObjBounds(obj, w, h) {
   const def = obj.getDefault(w, h);
   const pos = scenePositions[obj.id] || def;
-  return { x: pos.x, y: pos.y, w: obj.w, h: obj.h };
+  const snapX = gridSnap(pos.x), snapY = gridSnap(pos.y);
+  return { x: snapX, y: snapY, w: obj.w, h: obj.h };
 }
 function drawSceneObject(obj, w, h, t) {
-  const pos = scenePositions[obj.id] || obj.getDefault(w, h);
-  if (obj.draw) obj.draw(pos.x, pos.y, t);
+  const def = scenePositions[obj.id] || obj.getDefault(w, h);
+  const snapX = gridSnap(def.x), snapY = gridSnap(def.y);
+  if (obj.draw) obj.draw(snapX, snapY, t);
 }
 function drawSceneObjects(w, h, t) {
   for (const obj of SCENE_OBJECTS) drawSceneObject(obj, w, h, t);
@@ -1211,7 +1685,7 @@ function sceneObjectSnapshot(w = canvas.clientWidth || 960, h = canvas.clientHei
       cx: Math.round(b.x + obj.w / 2),
       cy: Math.round(b.y + obj.h / 2),
       category: obj.id.startsWith("desk_") ? "desk" : obj.id === "corgi" ? "pet" : obj.id === "aquarium" ? "aquarium" : obj.id === "breakbar" || obj.id === "coffee_machine" || obj.id === "microwave" ? "facility" : "object",
-      owner: { desk_default: "阿默", desk_planner: "小韩", desk_researcher: "小研", desk_writer: "小文", corgi: "小文" }[obj.id] || "company",
+      owner: { desk_default: "阿默", desk_planner: "小韩", desk_researcher: "小研", desk_writer: "小文", desk_linxiaoyan: "小岩", corgi: "小文" }[obj.id] || "company",
       interactable: true,
       dynamic: obj.id === "corgi" || obj.id === "aquarium" || obj.id === "breakbar",
       affordances: {
@@ -1303,6 +1777,35 @@ function drawSelectionBox(w, h, t) {
   }
   ctx.textAlign = "left";
   ctx.restore();
+  // 绘制网格参考线
+  ctx.save();
+  ctx.strokeStyle = "rgba(255,255,255,0.08)";
+  ctx.lineWidth = 0.5;
+  const cw = canvas.clientWidth, ch = canvas.clientHeight;
+  for (let gx = 0; gx < cw; gx += GRID_SIZE) {
+    ctx.beginPath();
+    ctx.moveTo(gx + 0.5, 0);
+    ctx.lineTo(gx + 0.5, ch);
+    ctx.stroke();
+  }
+  for (let gy = 0; gy < ch; gy += GRID_SIZE) {
+    ctx.beginPath();
+    ctx.moveTo(0, gy + 0.5);
+    ctx.lineTo(cw, gy + 0.5);
+    ctx.stroke();
+  }
+  // 标出吸附锚点
+  if (editSelected) {
+    const obj = SCENE_OBJECTS.find((o) => o.id === editSelected);
+    if (obj && scenePositions[editSelected]) {
+      const p = scenePositions[editSelected];
+      ctx.fillStyle = "rgba(239,189,78,0.6)";
+      ctx.beginPath();
+      ctx.arc(gridSnap(p.x) + obj.w / 2, gridSnap(p.y) + obj.h / 2, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
 }
 function hitTestSceneObjects(mx, my, w, h) {
   for (let i = SCENE_OBJECTS.length - 1; i >= 0; i--) {
@@ -1329,7 +1832,8 @@ function syncMobileEditUi() {
 }
 function revertCurrentEditSelection(message = "已撤销当前物品移动") {
   if (!(editSelectedStart == null ? void 0 : editSelectedStart.id)) return false;
-  scenePositions[editSelectedStart.id] = { x: editSelectedStart.x, y: editSelectedStart.y };
+  const obj = scenePositions[editSelectedStart.id];
+  scenePositions[editSelectedStart.id] = { x: gridSnap(obj.x), y: gridSnap(obj.y) };
   editSelected = null;
   editSelectedStart = null;
   editDragging = false;
@@ -1404,7 +1908,7 @@ function setEditMode(next) {
   canvas.style.cursor = editMode ? "grab" : "default";
   syncMobileEditUi();
   updateRoomUI();
-  document.querySelector("#sceneTip").textContent = editMode ? "装修开始了——点一个东西，拖到想去的位置" : "点击员工聊天，点工位看他忙啥";
+  document.querySelector("#sceneTip").textContent = editMode ? "装修模式 — 物件已开启网格对齐（16px），拖动物件自动吸附网格" : "点击员工聊天，点工位看他忙啥";
 }
 canvas.addEventListener("mousedown", (e) => {
   if (!editMode) return;
@@ -1441,7 +1945,7 @@ canvas.addEventListener("mousemove", (e) => {
       collisionWarning = "";
     }
   }
-  scenePositions[editSelected] = { x: newX, y: newY };
+  scenePositions[editSelected] = { x: gridSnap(newX), y: gridSnap(newY) };
   syncMobileEditUi();
   e.preventDefault();
 });
@@ -1488,7 +1992,7 @@ canvas.addEventListener("touchmove", (e) => {
       collisionWarning = "";
     }
   }
-  scenePositions[editSelected] = { x: newX, y: newY };
+  scenePositions[editSelected] = { x: gridSnap(newX), y: gridSnap(newY) };
   syncMobileEditUi();
   e.preventDefault();
 }, { passive: false });
@@ -1713,7 +2217,7 @@ function drawSpeech(a, t, w) {
   lines.forEach((line, i) => ctx.fillText(line, bx + 8, by + 18 + i * 15));
 }
 function homeOf(a, w, h) {
-  const deskId = { default: "desk_default", planner: "desk_planner", researcher: "desk_researcher", writer: "desk_writer" }[a.id];
+  const deskId = { default: "desk_default", planner: "desk_planner", researcher: "desk_researcher", writer: "desk_writer", linxiaoyan: "desk_linxiaoyan" }[a.id];
   const deskObj = SCENE_OBJECTS.find((o) => o.id === deskId);
   const deskPos = deskId && (scenePositions[deskId] || (deskObj == null ? void 0 : deskObj.getDefault(w, h)));
   if (deskPos) return [deskPos.x + 66, deskPos.y + 60];
@@ -1782,7 +2286,7 @@ function target(a, w, h, t) {
   }
   if (a.presence === "lunch") {
     a.mode = "eat";
-    const offset = { default: [-0.04, 0], planner: [0.04, 0], researcher: [-0.04, 0.04], writer: [0.04, 0.04] }[a.id];
+    const offset = { default: [-0.04, 0], planner: [0.04, 0], researcher: [-0.04, 0.04], writer: [0.04, 0.04], linxiaoyan: [0, -0.04] }[a.id];
     return [w * (0.85 + offset[0]), h * (0.8 + offset[1])];
   }
   if (a.phase !== "desk" && a.phase !== "return" && t >= a.phaseUntil) finishPhase(a, t);
@@ -1818,7 +2322,7 @@ function target(a, w, h, t) {
   }
   if (status === "meeting") {
     a.mode = "meeting";
-    const seat = { default: [-0.05, 0.02], planner: [0.05, -0.02], researcher: [-0.05, -0.03], writer: [0.05, 0.03] }[a.id];
+    const seat = { default: [-0.05, 0.02], planner: [0.05, -0.02], researcher: [-0.05, -0.03], writer: [0.05, 0.03], linxiaoyan: [0, -0.07] }[a.id];
     return [w * (0.505 + seat[0]), h * (0.56 + seat[1])];
   }
   a.mode = status === "working" ? "working" : status === "blocked" ? "blocked" : "deskIdle";

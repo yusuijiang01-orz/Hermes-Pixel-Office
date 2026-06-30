@@ -9,11 +9,19 @@ function frame(t) {
   document.querySelector("#homeSwitcher").classList.toggle("visible", neighborhood);
   if (currentRoom === "office" && !editMode) document.querySelector("#sceneTip").textContent = neighborhood ? "切换住宅查看员工，下方可直接私聊" : "点击员工聊天，点工位看他忙啥";
   if (currentRoom === "game") {
-    drawGameRoom(w2, h2, t);
+    if (!gameRoomState.started) initGameRoom();
+    DUNGEON.update(dt * 1000, t);
+    // apply screen shake
+    ctx.save();
+    if (DUNGEON.screenShake.intensity > 0.5) {
+      ctx.translate(DUNGEON.screenShake.x, DUNGEON.screenShake.y);
+    }
+    drawDungeon(w2, h2, t);
+    ctx.restore();
     ctx.textAlign = "center";
     ctx.fillStyle = "#8a9a9a";
-    ctx.font = "12px Microsoft YaHei";
-    ctx.fillText("左上角返回办公室 · 右上角回消息首页", w2 / 2, h2 * 0.68);
+    ctx.font = "10px Microsoft YaHei";
+    ctx.fillText("← 返回办公室", w2 * 0.12, h2 * 0.75);
     ctx.textAlign = "left";
   } else if (currentRoom === "boss") {
     drawBossOffice(w2, h2, t);
@@ -143,7 +151,7 @@ function setChatMode(mode) {
     scrollState.desktop.key = "";
     scrollState.desktop.stick = true;
     document.querySelector("#agentName").textContent = "全员群聊";
-    document.querySelector("#agentRole").textContent = "阿默 · 小韩 · 小研 · 小文";
+    document.querySelector("#agentRole").textContent = "阿默 · 小韩 · 小研 · 小文 · 小岩";
     document.querySelector("#agentStatus").textContent = "团队频道";
     document.querySelector("#agentTask").textContent = ((_a = state == null ? void 0 : state.board) == null ? void 0 : _a.name) || "当前项目";
     input.placeholder = "向全组发起讨论...";
@@ -268,4 +276,42 @@ document.querySelectorAll("[data-home]").forEach((button) => button.classList.to
 document.querySelector("#sheetToggle").addEventListener("click", () => {
   const panel = document.querySelector("aside"), closed = panel.classList.toggle("collapsed");
   document.querySelector("#sheetToggle").textContent = closed ? "⌃" : "⌄";
+});
+
+// === Keyboard: dungeon game controls ===
+document.addEventListener("keydown", (e) => {
+  if (currentRoom !== "game") return;
+  const p = DUNGEON.player;
+  if (e.key === "Escape") {
+    leaveRoom("esc");
+    e.preventDefault();
+    return;
+  }
+  if (e.key === "ArrowLeft" || e.key === "a") {
+    p.dir = -1;
+    p.x = Math.max(0, p.x - 2);
+    e.preventDefault();
+  }
+  if (e.key === "ArrowRight" || e.key === "d") {
+    p.dir = 1;
+    p.x = Math.min(960, p.x + 2);
+    e.preventDefault();
+  }
+  if (e.key === " " || e.key === "ArrowDown" || e.key === "s") {
+    DUNGEON.attack();
+    e.preventDefault();
+  }
+  if (e.key === "ArrowUp" || e.key === "w") {
+    DUNGEON.jump();
+    e.preventDefault();
+  }
+});
+
+// === Canvas: dungeon room click to leave ===
+canvas.addEventListener("click", (e) => {
+  if (currentRoom !== "game") return;
+  const p = canvasPointFromClient(e.clientX, e.clientY);
+  if (p.x < canvas.clientWidth * 0.25) {
+    leaveRoom("click");
+  }
 });

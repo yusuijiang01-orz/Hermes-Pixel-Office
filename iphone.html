@@ -91,8 +91,8 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const cfgKey="hermes-iphone-config-v1",stateKey="hermes-iphone-state-v1";
 let config=loadConfig(),state=loadCachedState(),mode="group",agent="default",source=null,refreshTimer=0,lastDraw=0,sendLocked=false;
 const canvas=$("#office"),ctx=canvas.getContext("2d");
-const colors={default:"#4aa6a0",planner:"#e7b34d",researcher:"#e45a9c",writer:"#a878d1"};
-const names={default:"阿默",planner:"小韩",researcher:"小研",writer:"小文"};
+const colors={default:"#4aa6a0",planner:"#e7b34d",researcher:"#e45a9c",writer:"#a878d1",linxiaoyan:"#6e8fd6"};
+const names={default:"阿默",planner:"小韩",researcher:"小研",writer:"小文",linxiaoyan:"小岩"};
 function loadConfig(){try{return JSON.parse(localStorage.getItem(cfgKey)||"{}")}catch{return{}}}
 function saveConfig(){localStorage.setItem(cfgKey,JSON.stringify(config))}
 function loadCachedState(){try{return JSON.parse(localStorage.getItem(stateKey)||"null")}catch{return null}}
@@ -119,10 +119,11 @@ function drawOffice(t=0){
   const agents=state?.agents||[];
   const map=Object.fromEntries(agents.map(a=>[a.id,a]));
   desk(42,150,"default",map.default?.status==="working");desk(w-154,150,"planner",map.planner?.status==="working");
+  desk(Math.max(94,w/2-56),214,"linxiaoyan",map.linxiaoyan?.status==="working");
   desk(42,270,"researcher",map.researcher?.status==="working");desk(w-154,270,"writer",map.writer?.status==="working");
   aquarium(Math.max(120,w/2-64),126,t);
   px(w-116,238,94,56,"#efeadb");px(w-108,250,22,32,"#303a3a");px(w-78,246,24,36,"#e9eee9");px(w-43,252,18,30,"#d9d2c1");
-  person(98,220,"default",map.default?.status);person(w-98,220,"planner",map.planner?.status);person(98,340,"researcher",map.researcher?.status);person(w-98,340,"writer",map.writer?.status);
+  person(98,220,"default",map.default?.status);person(w-98,220,"planner",map.planner?.status);person(w/2,286,"linxiaoyan",map.linxiaoyan?.status);person(98,340,"researcher",map.researcher?.status);person(w-98,340,"writer",map.writer?.status);
   corgi(w-70,326,t);
 }
 function loop(t){lastDraw=t;drawOffice(t);requestAnimationFrame(loop)}requestAnimationFrame(loop);
@@ -136,7 +137,7 @@ function render(){
     `<span class="chip">${(state?.agents||[]).length||0} 人在线</span>`
   ].join("");
   $("#agents").innerHTML=(state?.agents||[]).map(a=>`<div class="agent"><div class="face">${esc(a.short||names[a.id]||"?").slice(0,1)}</div><div><h3>${esc(a.short||a.name)}</h3><p>${esc(a.role||"员工")} · ${esc(a.status_label||a.status||"待命")}</p></div><button data-chat="${esc(a.id)}">私聊</button></div>`).join("")||`<div class="empty">还没有读取到员工状态。</div>`;
-  $("#agentPick").innerHTML=(state?.agents||[{id:"default",short:"阿默"},{id:"planner",short:"小韩"},{id:"researcher",short:"小研"},{id:"writer",short:"小文"}]).map(a=>`<button class="ghost" data-pick="${esc(a.id)}">${esc(a.short||names[a.id]||a.id)}</button>`).join("");
+  $("#agentPick").innerHTML=(state?.agents||[{id:"default",short:"阿默"},{id:"planner",short:"小韩"},{id:"researcher",short:"小研"},{id:"writer",short:"小文"},{id:"linxiaoyan",short:"小岩"}]).map(a=>`<button class="ghost" data-pick="${esc(a.id)}">${esc(a.short||names[a.id]||a.id)}</button>`).join("");
   $("#currentAgent").textContent=names[agent]||agent;
   renderChat();
 }

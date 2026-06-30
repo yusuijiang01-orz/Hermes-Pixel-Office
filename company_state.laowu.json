@@ -1,0 +1,705 @@
+{
+  "version": 1,
+  "studio_name": "Laowu Pixel Works",
+  "open_roles": [
+    "前端像素 UI 工程师",
+    "Companyverse 场景设计师"
+  ],
+  "pending_notices": [
+    "公司公告：当前登录账号 laowu 使用独立公司状态与独立聊天记录。",
+    "招聘中：欢迎补强移动端 UI、场景交互与小游戏体验。"
+  ],
+  "operating_rules": [
+    "老板在聊天里明确提出开发、修改、交付、先做一版看看时，视为项目指令。",
+    "员工在群里承诺我来做、我负责、我立马去做时，承诺者必须成为执行人或创建自己能推动的子任务。",
+    "聊天回复不能阻塞执行；先行动，完成后回到原群或私聊反馈。",
+    "聊天人格和执行人格分离：闲聊可以像同事接话吐槽；一旦进入项目指令，默认立刻执行，不用今晚、明天、回头再看来拖延。",
+    "每个真实项目任务必须有可验收结果：访问地址、改动文件、测试/验证方式。",
+    "普通闲聊不制造任务；项目指令不只聊天。"
+  ],
+  "memory_policy": {
+    "chat_history": "原始聊天记录保存在 Kanban 数据库和日志中，不整体塞进长期记忆。",
+    "long_term_memory": "长期记忆只保存公司事实、资产、老板关键要求、团队决策、执行承诺和交付结论。",
+    "compression": "每次给员工上下文时使用摘要：事实、资产、近期事件、团队决策、规则，而不是完整聊天流水。"
+  },
+  "universe_pipeline": {
+    "enabled": true,
+    "rule": "聊天不是一次性气泡；老板要求、员工灵感、团队承诺会沉淀为像素宇宙事件、资产、小游戏灵感和可执行任务。",
+    "flow": [
+      "聊天记录",
+      "结构化沉淀",
+      "宇宙记忆",
+      "任务候选",
+      "真实文件落地",
+      "回群反馈"
+    ]
+  },
+  "universe_events": [],
+  "universe_ideas": [],
+  "universe_tasks": [],
+  "sediment_cursors": {},
+  "team_decisions": [],
+  "stale_project_reviews": [],
+  "facts": [
+    "公司是一间可实时访问的像素游戏公司，不只是聊天模拟器，也承担真实游戏开发任务。",
+    "公司办公室已有咖啡机、制冰机、打奶泡设备、水吧、大型鱼缸和小文养的柯基犬。",
+    "老板之前给员工点过奶茶；员工应把这些当成公司生活记忆，而不是临时 UI 装饰。",
+    "当前重点项目是 Hermes 像素游戏公司和 Relicbound ARPG，老板要求任务能落地到真实文件。"
+  ],
+  "assets": [
+    {
+      "id": "coffee_machine",
+      "name": "咖啡机",
+      "owner": "company",
+      "location": "办公室水吧"
+    },
+    {
+      "id": "ice_machine",
+      "name": "制冰机",
+      "owner": "company",
+      "location": "办公室水吧"
+    },
+    {
+      "id": "milk_foamer",
+      "name": "打奶泡设备",
+      "owner": "company",
+      "location": "办公室水吧"
+    },
+    {
+      "id": "aquarium",
+      "name": "大型鱼缸",
+      "owner": "company",
+      "location": "办公室展示区"
+    },
+    {
+      "id": "corgi",
+      "name": "柯基犬",
+      "owner": "writer",
+      "location": "办公室/小文身边"
+    }
+  ],
+  "recent_events": [
+    {
+      "time": "2026-06-30",
+      "text": "laowu 的像素公司已初始化。"
+    }
+  ],
+  "execution_policy": {
+    "owner": "planner",
+    "implementer": "default",
+    "reviewers": [
+      "researcher",
+      "writer"
+    ],
+    "rule": "老板在群聊或私聊提出真实项目改动时，必须创建执行任务，改真实文件，完成后汇报可验收结果。"
+  },
+  "employees": {
+    "default": {
+      "archetype": "技术制作人",
+      "hobbies": [
+        "机械键盘",
+        "老 JRPG",
+        "深夜改 shader"
+      ],
+      "likes": [
+        "真数据",
+        "短会议",
+        "能复现的 bug"
+      ],
+      "dislikes": [
+        "空话",
+        "拍脑袋需求",
+        "没有截图的反馈"
+      ],
+      "quirks": [
+        "凌晨会偷偷上线修东西",
+        "嘴硬但会默默兜底"
+      ],
+      "social": {
+        "close_to": [
+          "planner"
+        ],
+        "teases": [
+          "researcher"
+        ],
+        "soft_spot": [
+          "writer"
+        ]
+      }
+    },
+    "planner": {
+      "archetype": "产品脑主管",
+      "hobbies": [
+        "动作游戏拆解",
+        "跑步机",
+        "看商业化案例"
+      ],
+      "likes": [
+        "短反馈回路",
+        "能上线的方案",
+        "玩家直觉"
+      ],
+      "dislikes": [
+        "自嗨设定",
+        "说半天不落地",
+        "需求发散"
+      ],
+      "quirks": [
+        "急了会连发三句",
+        "嘴上说砍掉其实会偷偷留后手"
+      ],
+      "social": {
+        "close_to": [
+          "default"
+        ],
+        "sparks_with": [
+          "writer"
+        ],
+        "manages": [
+          "researcher"
+        ]
+      }
+    },
+    "researcher": {
+      "archetype": "较真研究员",
+      "hobbies": [
+        "翻 demo",
+        "看论坛吐槽",
+        "做小实验"
+      ],
+      "likes": [
+        "反直觉结论",
+        "可验证假设",
+        "玩家行为数据"
+      ],
+      "dislikes": [
+        "想当然",
+        "没样本就下结论",
+        "伪需求"
+      ],
+      "quirks": [
+        "常把一句话追问成三层",
+        "突然开始贴证据"
+      ],
+      "social": {
+        "close_to": [
+          "writer"
+        ],
+        "annoys": [
+          "planner"
+        ],
+        "respects": [
+          "default"
+        ]
+      }
+    },
+    "writer": {
+      "archetype": "叙事文案",
+      "hobbies": [
+        "乙女与像素独游",
+        "咖啡店观察人类",
+        "写废稿"
+      ],
+      "likes": [
+        "有呼吸感的对白",
+        "角色小动作",
+        "能被玩家记住的句子"
+      ],
+      "dislikes": [
+        "功能味文案",
+        "像客服一样说话",
+        "没有情绪的 UI"
+      ],
+      "quirks": [
+        "表面柔和其实很会吐槽",
+        "开会时会突然给角色起外号"
+      ],
+      "social": {
+        "close_to": [
+          "researcher"
+        ],
+        "sparks_with": [
+          "planner"
+        ],
+        "quietly_observes": [
+          "default"
+        ]
+      }
+    },
+    "linxiaoyan": {
+      "archetype": "品牌内容策略",
+      "hobbies": [
+        "看展",
+        "咖啡店观察人类",
+        "收集有质感的海报和标题"
+      ],
+      "likes": [
+        "克制但有记忆点的表达",
+        "低饱和审美",
+        "被认真对待的细节"
+      ],
+      "dislikes": [
+        "太像客服的话术",
+        "空心但很热闹的包装",
+        "失信和敷衍"
+      ],
+      "quirks": [
+        "会默默改掉别人口中的别扭语气",
+        "看到排版不顺眼会先截图存起来"
+      ],
+      "social": {
+        "close_to": [
+          "writer"
+        ],
+        "aligns_with": [
+          "planner"
+        ],
+        "quietly_observes": [
+          "default"
+        ]
+      }
+    }
+  },
+  "universe_stats": {
+    "last_updated": "",
+    "total_deposits": 0,
+    "by_category": {
+      "company_life": 0,
+      "gameplay": 0,
+      "world_area": 0,
+      "narrative": 0,
+      "system_feature": 0,
+      "universe_growth": 0,
+      "memory": 0
+    },
+    "by_source": {
+      "boss": 0,
+      "agent": 0,
+      "internal": 0
+    },
+    "latest_deposit_time": null,
+    "sediment_scheduler_running": false
+  },
+  "world_objects": {
+    "office": {
+      "monitor": {
+        "id": "monitor",
+        "name": "显示器",
+        "scene": "office",
+        "x": 80.0,
+        "y": 112.0,
+        "w": 52.0,
+        "h": 34.0,
+        "cx": 106.0,
+        "cy": 129.0,
+        "category": "object",
+        "owner": "company",
+        "interactable": true,
+        "dynamic": false,
+        "affordances": [
+          "inspect"
+        ],
+        "updated_at": 1782813660
+      },
+      "coffee_machine": {
+        "id": "coffee_machine",
+        "name": "咖啡机",
+        "scene": "office",
+        "x": 688.0,
+        "y": 176.0,
+        "w": 36.0,
+        "h": 46.0,
+        "cx": 706.0,
+        "cy": 199.0,
+        "category": "facility",
+        "owner": "company",
+        "interactable": true,
+        "dynamic": false,
+        "affordances": [
+          "make_coffee"
+        ],
+        "updated_at": 1782813660
+      },
+      "computer_tower": {
+        "id": "computer_tower",
+        "name": "电脑主机",
+        "scene": "office",
+        "x": 64.0,
+        "y": 128.0,
+        "w": 28.0,
+        "h": 52.0,
+        "cx": 78.0,
+        "cy": 154.0,
+        "category": "object",
+        "owner": "company",
+        "interactable": true,
+        "dynamic": false,
+        "affordances": [
+          "inspect"
+        ],
+        "updated_at": 1782813660
+      },
+      "tea_table": {
+        "id": "tea_table",
+        "name": "茶几",
+        "scene": "office",
+        "x": 400.0,
+        "y": 464.0,
+        "w": 64.0,
+        "h": 32.0,
+        "cx": 432.0,
+        "cy": 480.0,
+        "category": "object",
+        "owner": "company",
+        "interactable": true,
+        "dynamic": false,
+        "affordances": [
+          "inspect"
+        ],
+        "updated_at": 1782813660
+      },
+      "aquarium": {
+        "id": "aquarium",
+        "name": "鱼缸",
+        "scene": "office",
+        "x": 704.0,
+        "y": 400.0,
+        "w": 200.0,
+        "h": 74.0,
+        "cx": 804.0,
+        "cy": 437.0,
+        "category": "aquarium",
+        "owner": "company",
+        "interactable": true,
+        "dynamic": true,
+        "affordances": [
+          "observe",
+          "feed_fish",
+          "corgi_watch"
+        ],
+        "updated_at": 1782813660
+      },
+      "desk_default": {
+        "id": "desk_default",
+        "name": "阿默工位",
+        "scene": "office",
+        "x": 128.0,
+        "y": 192.0,
+        "w": 150.0,
+        "h": 62.0,
+        "cx": 203.0,
+        "cy": 223.0,
+        "category": "desk",
+        "owner": "阿默",
+        "interactable": true,
+        "dynamic": false,
+        "affordances": [
+          "inspect"
+        ],
+        "updated_at": 1782813660
+      },
+      "desk_planner": {
+        "id": "desk_planner",
+        "name": "小韩工位",
+        "scene": "office",
+        "x": 528.0,
+        "y": 192.0,
+        "w": 150.0,
+        "h": 62.0,
+        "cx": 603.0,
+        "cy": 223.0,
+        "category": "desk",
+        "owner": "小韩",
+        "interactable": true,
+        "dynamic": false,
+        "affordances": [
+          "inspect"
+        ],
+        "updated_at": 1782813660
+      },
+      "desk_linxiaoyan": {
+        "id": "desk_linxiaoyan",
+        "name": "小岩工位",
+        "scene": "office",
+        "x": 328.0,
+        "y": 192.0,
+        "w": 150.0,
+        "h": 62.0,
+        "cx": 403.0,
+        "cy": 223.0,
+        "category": "desk",
+        "owner": "小岩",
+        "interactable": true,
+        "dynamic": false,
+        "affordances": [
+          "inspect"
+        ],
+        "updated_at": 1782813660
+      },
+      "desk_researcher": {
+        "id": "desk_researcher",
+        "name": "小研工位",
+        "scene": "office",
+        "x": 128.0,
+        "y": 368.0,
+        "w": 150.0,
+        "h": 62.0,
+        "cx": 203.0,
+        "cy": 399.0,
+        "category": "desk",
+        "owner": "小研",
+        "interactable": true,
+        "dynamic": false,
+        "affordances": [
+          "inspect"
+        ],
+        "updated_at": 1782813660
+      },
+      "desk_writer": {
+        "id": "desk_writer",
+        "name": "小文工位",
+        "scene": "office",
+        "x": 528.0,
+        "y": 368.0,
+        "w": 150.0,
+        "h": 62.0,
+        "cx": 603.0,
+        "cy": 399.0,
+        "category": "desk",
+        "owner": "小文",
+        "interactable": true,
+        "dynamic": false,
+        "affordances": [
+          "inspect"
+        ],
+        "updated_at": 1782813660
+      },
+      "breakbar": {
+        "id": "breakbar",
+        "name": "水吧",
+        "scene": "office",
+        "x": 752.0,
+        "y": 304.0,
+        "w": 178.0,
+        "h": 88.0,
+        "cx": 841.0,
+        "cy": 348.0,
+        "category": "facility",
+        "owner": "company",
+        "interactable": true,
+        "dynamic": true,
+        "affordances": [
+          "drink_water",
+          "make_coffee",
+          "ice",
+          "milk_foam"
+        ],
+        "updated_at": 1782813660
+      },
+      "microwave": {
+        "id": "microwave",
+        "name": "微波炉",
+        "scene": "office",
+        "x": 880.0,
+        "y": 320.0,
+        "w": 32.0,
+        "h": 36.0,
+        "cx": 896.0,
+        "cy": 338.0,
+        "category": "facility",
+        "owner": "company",
+        "interactable": true,
+        "dynamic": false,
+        "affordances": [
+          "heat_food",
+          "toast"
+        ],
+        "updated_at": 1782813660
+      },
+      "meeting_table": {
+        "id": "meeting_table",
+        "name": "会议桌",
+        "scene": "office",
+        "x": 432.0,
+        "y": 320.0,
+        "w": 170.0,
+        "h": 100.0,
+        "cx": 517.0,
+        "cy": 370.0,
+        "category": "object",
+        "owner": "company",
+        "interactable": true,
+        "dynamic": false,
+        "affordances": [
+          "meeting"
+        ],
+        "updated_at": 1782813660
+      },
+      "corgi": {
+        "id": "corgi",
+        "name": "柯基",
+        "scene": "office",
+        "x": 656.0,
+        "y": 448.0,
+        "w": 50.0,
+        "h": 30.0,
+        "cx": 681.0,
+        "cy": 463.0,
+        "category": "pet",
+        "owner": "小文",
+        "interactable": true,
+        "dynamic": true,
+        "affordances": [
+          "pet",
+          "follow_writer",
+          "play"
+        ],
+        "updated_at": 1782813660
+      },
+      "bookshelf": {
+        "id": "bookshelf",
+        "name": "书架",
+        "scene": "office",
+        "x": 368.0,
+        "y": 96.0,
+        "w": 48.0,
+        "h": 72.0,
+        "cx": 392.0,
+        "cy": 132.0,
+        "category": "object",
+        "owner": "company",
+        "interactable": true,
+        "dynamic": false,
+        "affordances": [
+          "inspect"
+        ],
+        "updated_at": 1782813660
+      },
+      "plant": {
+        "id": "plant",
+        "name": "盆栽",
+        "scene": "office",
+        "x": 880.0,
+        "y": 496.0,
+        "w": 24.0,
+        "h": 32.0,
+        "cx": 892.0,
+        "cy": 512.0,
+        "category": "object",
+        "owner": "company",
+        "interactable": true,
+        "dynamic": false,
+        "affordances": [
+          "inspect"
+        ],
+        "updated_at": 1782813660
+      },
+      "employee_default": {
+        "id": "employee_default",
+        "name": "制作人 阿默",
+        "scene": "office",
+        "x": 170.0,
+        "y": 205.0,
+        "w": 36.0,
+        "h": 64.0,
+        "cx": 188.0,
+        "cy": 237.0,
+        "category": "employee",
+        "owner": "default",
+        "interactable": true,
+        "dynamic": true,
+        "affordances": [
+          "chat",
+          "assign_task",
+          "observe_status"
+        ],
+        "updated_at": 1782813660
+      },
+      "employee_planner": {
+        "id": "employee_planner",
+        "name": "策划主编 小韩",
+        "scene": "office",
+        "x": 572.0,
+        "y": 204.0,
+        "w": 36.0,
+        "h": 64.0,
+        "cx": 590.0,
+        "cy": 236.0,
+        "category": "employee",
+        "owner": "planner",
+        "interactable": true,
+        "dynamic": true,
+        "affordances": [
+          "chat",
+          "assign_task",
+          "observe_status"
+        ],
+        "updated_at": 1782813660
+      },
+      "employee_researcher": {
+        "id": "employee_researcher",
+        "name": "研究员 小研",
+        "scene": "office",
+        "x": 170.0,
+        "y": 386.0,
+        "w": 36.0,
+        "h": 64.0,
+        "cx": 188.0,
+        "cy": 418.0,
+        "category": "employee",
+        "owner": "researcher",
+        "interactable": true,
+        "dynamic": true,
+        "affordances": [
+          "chat",
+          "assign_task",
+          "observe_status"
+        ],
+        "updated_at": 1782813660
+      },
+      "employee_linxiaoyan": {
+        "id": "employee_linxiaoyan",
+        "name": "品牌内容 小岩",
+        "scene": "office",
+        "x": 370.0,
+        "y": 205.0,
+        "w": 36.0,
+        "h": 64.0,
+        "cx": 388.0,
+        "cy": 237.0,
+        "category": "employee",
+        "owner": "linxiaoyan",
+        "interactable": true,
+        "dynamic": true,
+        "affordances": [
+          "chat",
+          "assign_task",
+          "observe_status"
+        ],
+        "updated_at": 1782813660
+      },
+      "employee_writer": {
+        "id": "employee_writer",
+        "name": "文案 小文",
+        "scene": "office",
+        "x": 573.0,
+        "y": 385.0,
+        "w": 36.0,
+        "h": 64.0,
+        "cx": 591.0,
+        "cy": 417.0,
+        "category": "employee",
+        "owner": "writer",
+        "interactable": true,
+        "dynamic": true,
+        "affordances": [
+          "chat",
+          "assign_task",
+          "observe_status"
+        ],
+        "updated_at": 1782813660
+      }
+    }
+  },
+  "world_objects_updated_at": 1782813660
+}

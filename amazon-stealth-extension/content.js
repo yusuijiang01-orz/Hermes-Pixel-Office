@@ -316,7 +316,7 @@
       cool: "M14 24h16v8H14z M34 24h16v8H34z M30 27h4v3h-4z M24 43h14v4H24z",
       shock: "M18 24h5v5h-5z M39 24h5v5h-5z M27 39h9v12h-9z",
       sleep: "M18 27h5v4h-5z M37 27h5v4h-5z M25 43h13v4H25z M44 12h9v4h-5v4h5v4h-10v-4h5v-4h-4z",
-      thumb: "M16 30h9v18h-9z M25 27h9V16h7v11h9v9h-5v12H25z",
+      thumb: "M26 34h4v6h-4z M30 38h10v2h-10z M30 40h10v8h-10z",
       coffee: "M18 22h24v22H18z M42 27h8v10h-8z M23 26h14v4H23z M23 35h14v4H23z"
     };
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" shape-rendering="crispEdges"><rect width="64" height="64" fill="none"/><path fill="${accent}" d="M14 12h36v4h4v36h-4v4H14v-4h-4V16h4z"/><path fill="${main}" d="M18 16h28v4h4v28h-4v4H18v-4h-4V20h4z"/><path fill="#fff3c7" d="M22 18h18v4H22z"/><path fill="${accent}" d="${moods[face] || moods.smile}"/></svg>`;

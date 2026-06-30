@@ -1,0 +1,14 @@
+{
+  "admin": {
+    "password": "Ww123456.",
+    "board": "relicbound-arpg",
+    "company_state": "company_state.json",
+    "studio_name": "Hermes Pixel Works"
+  },
+  "laowu": {
+    "password": "Ww123456",
+    "board": "laowu-company",
+    "company_state": "company_state.laowu.json",
+    "studio_name": "Laowu Pixel Works"
+  }
+}

@@ -4,7 +4,6 @@
 
 需求来源：
 - `docs/user-messages-2026-06-25-to-2026-06-26.md`
-- 用户确认的目标版本截图：`D:/文档/Tencent Files/335399288/nt_qq/nt_data/Pic/2026-06/Ori/fba502ed6f137d9409e95076f02f6889.png`
 
 ## 恢复原则
 
