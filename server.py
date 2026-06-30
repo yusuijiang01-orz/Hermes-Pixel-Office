@@ -390,6 +390,8 @@ def run_as_user(username, fn):
 
 def current_user_config(username=None):
     user = str(username or current_request_username() or default_auth_username()).strip()
+    if production_single_company_mode() and user != default_auth_username():
+        user = default_auth_username()
     users = configured_auth_users()
     config = dict(users.get(user) or {})
     if not config:
