@@ -1,8 +1,8 @@
 var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
 let _mobileRenderedChatKey = "";
-function msgTime(ts) {
+function msgTime(ts, withSeconds = false) {
   if (!ts) return "";
-  return new Date(ts * 1e3).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+  return new Date(ts * 1e3).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: withSeconds ? "2-digit" : void 0 });
 }
 function currentWorldDate() {
   var _a2;
@@ -67,6 +67,62 @@ function taskStatusLabel(status) {
     ready: "待开始",
     todo: "排队中"
   }[String(status || "").toLowerCase()] || "处理中";
+}
+function taskKindLabel(kind) {
+  return kind === "collab" ? "协作子任务" : "项目执行";
+}
+function taskOwnerName(task) {
+  const agent = agentById(task == null ? void 0 : task.assignee);
+  return (task == null ? void 0 : task.owner_short) || (agent == null ? void 0 : agent.short) || (task == null ? void 0 : task.owner_name) || (agent == null ? void 0 : agent.name) || (task == null ? void 0 : task.assignee) || "员工";
+}
+function taskTimelineText(task) {
+  const ts = (task == null ? void 0 : task.completed) || (task == null ? void 0 : task.created);
+  if (!ts) return "刚同步";
+  return new Date(ts * 1e3).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+function privateReplyText(message) {
+  const reply = cleanSpeechText((message == null ? void 0 : message.reply) || "");
+  if (!reply || uiNoise(reply)) return "";
+  return reply;
+}
+function taskFollowupDraft(task) {
+  const title = (task == null ? void 0 : task.title) || "这条任务";
+  return (task == null ? void 0 : task.status) === "blocked" ? `关于「${title}」，你现在具体卡在哪一步？把阻塞点、需要我拍板的选项、你建议的方案直接告诉我。` : `关于「${title}」，麻烦你把当前进度、下一步，以及我需要配合的地方直接告诉我。`;
+}
+function focusChatInput(kind, text = "") {
+  const input = inputFor(kind);
+  if (!input) return;
+  if (text) input.value = text;
+  autoResizeInput(input);
+  input.focus();
+  const caret = input.value.length;
+  input.setSelectionRange(caret, caret);
+}
+function taskById(taskId) {
+  return (((state == null ? void 0 : state.company) == null ? void 0 : state.company.project_tasks) || []).find((task) => String(task.id) === String(taskId)) || null;
+}
+function openMobileTaskDetail(taskId) {
+  mobileState.taskDetailOpen = true;
+  mobileState.taskDetailId = String(taskId || "");
+  renderMobileShell();
+}
+function closeMobileTaskDetail() {
+  mobileState.taskDetailOpen = false;
+  mobileState.taskDetailId = null;
+  renderMobileShell();
+}
+function currentTaskDetail() {
+  return mobileState.taskDetailId ? taskById(mobileState.taskDetailId) : null;
+}
+function nextChatDisplayTs(previousTs, message, offset = 0) {
+  const base = Number((message == null ? void 0 : message.completed) || (message == null ? void 0 : message.created) || (message == null ? void 0 : message.task_created) || 0) + offset;
+  return base > previousTs ? base : previousTs + 1;
+}
+function pendingReplyLabel(message) {
+  if (!message) return "正在处理并组织回复...";
+  if (message.status === "blocked") return "遇到问题，正在整理需要你决定的事项...";
+  if (message.status === "done") return "刚才那条回复带了系统噪音，已自动省略。";
+  return "正在处理并组织回复...";
 }
 function validChatLines(msg) {
   const lines = ((msg == null ? void 0 : msg.chat_lines) || []).map((line) => cleanSpeechText(line)).filter((line) => line && !uiNoise(line));
@@ -212,14 +268,30 @@ function renderMobileCompany() {
   summary.textContent = `当前共有 ${total} 条未完成任务${blockedCount ? `，其中 ${blockedCount} 条阻塞中` : ""}。下面按员工展开。`;
   board.innerHTML = [...byAssignee.entries()].map(([assignee, items]) => {
     const owner = items[0] || {};
-    const ownerName = owner.owner_short || owner.owner_name || assignee;
-    return `<section class="mobile-kanban-group"><div class="mobile-kanban-head"><div class="mobile-kanban-name">${esc(ownerName)}</div><span class="mobile-kanban-count">${items.length}</span></div><div class="mobile-kanban-list">${items.map((task) => `<article class="mobile-kanban-item"><strong>${esc(task.title || "未命名任务")}</strong><div class="mobile-kanban-meta"><span class="mobile-kanban-tag ${esc(task.status || "todo")}">${esc(taskStatusLabel(task.status))}</span><span class="mobile-kanban-tag">${task.kind === "collab" ? "协作子任务" : "项目执行"}</span></div></article>`).join("")}</div></section>`;
+    const ownerName = taskOwnerName(owner) || assignee;
+    return `<section class="mobile-kanban-group"><div class="mobile-kanban-head"><div class="mobile-kanban-name">${esc(ownerName)}</div><span class="mobile-kanban-count">${items.length}</span></div><div class="mobile-kanban-list">${items.map((task) => `<article class="mobile-kanban-item ${esc(task.status || "todo")}" data-open-task="${esc(task.id)}"><strong>${esc(task.title || "未命名任务")}</strong><div class="mobile-kanban-meta"><span class="mobile-kanban-tag ${esc(task.status || "todo")}">${esc(taskStatusLabel(task.status))}</span><span class="mobile-kanban-tag">${esc(taskKindLabel(task.kind))}</span></div><div class="mobile-kanban-summary">${esc(task.summary || (task.status === "blocked" ? "点开后查看阻塞说明。" : "点开查看详情，并直接去私聊处理。"))}</div></article>`).join("")}</div></section>`;
   }).join("");
+}
+function renderMobileTaskSheet() {
+  const sheet = document.querySelector("#mobileTaskSheet"), title = document.querySelector("#mobileTaskSheetTitle"), meta = document.querySelector("#mobileTaskSheetMeta"), summary = document.querySelector("#mobileTaskSheetSummary"), blocked = document.querySelector("#mobileTaskSheetBlocked"), task = currentTaskDetail();
+  if (!sheet) return;
+  sheet.classList.toggle("open", !!(mobileState.taskDetailOpen && task));
+  if (!(mobileState.taskDetailOpen && task)) return;
+  title.textContent = task.title || "未命名任务";
+  summary.textContent = task.summary || "这条任务暂时还没有更多说明。";
+  blocked.textContent = task.blocked_reason ? `阻塞说明：${task.blocked_reason}` : "";
+  meta.innerHTML = [
+    `<span class="mobile-kanban-tag">${esc(taskOwnerName(task))}</span>`,
+    `<span class="mobile-kanban-tag ${esc(task.status || "todo")}">${esc(taskStatusLabel(task.status))}</span>`,
+    `<span class="mobile-kanban-tag">${esc(taskKindLabel(task.kind))}</span>`,
+    `<span class="mobile-kanban-tag">同步于 ${esc(taskTimelineText(task))}</span>`
+  ].join("");
 }
 function renderMobileChatScreen() {
   var _a2, _b2;
   const screen = document.querySelector("#mobileChatScreen"), body = document.querySelector("#mobileChatBody"), title = document.querySelector("#mobileChatTitle"), subtitle = document.querySelector("#mobileChatSubtitle");
   screen.classList.toggle("open", mobileState.chatOpen);
+  if (mobileState.chatOpen) screen.classList.remove("closing");
   if (mobileState.chatMode !== "group") closeMentionMenu("mobile");
   if (!mobileState.chatOpen) return;
   const all = (state == null ? void 0 : state.messages) || [];
@@ -254,10 +326,10 @@ function renderMobileChatScreen() {
         wrapper.dataset.msgId = m.id;
         body.appendChild(wrapper);
       }
-      const reply = cleanSpeechText(m.reply || "");
+      const reply = privateReplyText(m);
       wrapper.innerHTML = [
         m.prompt ? `<div class="bubble mine">${messageTextHtml(m.prompt, m.attachments)}${renderOwnBubbleMeta(m)}</div>` : "",
-        `<div class="bubble theirs ${reply ? "" : "pending"}"><span class="bubble-name">${esc(agent.short || agent.name || "员工")}<span class="bubble-time">${msgTime(m.completed || m.created)}</span></span>${reply ? messageTextHtml(compactText(reply, 400), m.attachments) : m.status === "blocked" ? "遇到问题，正在整理需要你决定的事项..." : "正在处理并组织回复..."}</div>`
+        `<div class="bubble theirs ${reply ? "" : "pending"}"><span class="bubble-name">${esc(agent.short || agent.name || "员工")}<span class="bubble-time">${msgTime(m.completed || m.created)}</span></span>${reply ? messageTextHtml(compactText(reply, 400), m.attachments) : pendingReplyLabel(m)}</div>`
       ].join("");
     });
     restoreScroll(body, "mobile", threadKey2);
@@ -300,13 +372,18 @@ function renderMobileChatScreen() {
     msgs.sort((a, b) => (a.created || 0) - (b.created || 0) || (a.round || 1) - (b.round || 1));
     const boss = msgs.find((m) => m.origin === "boss" && m.prompt) || msgs.find((m) => m.prompt);
     const html = [];
+    let displayTs = 0;
     if (boss) html.push(`<div class="msg-wrapper" data-msg-id="boss-${esc(key)}"><div class="bubble mine">${messageTextHtml(boss.prompt, boss.attachments)}${renderOwnBubbleMeta(boss)}</div></div>`);
-      msgs.forEach((m) => {
-        const speaker = (m.name || "员工").split(" ").slice(-1)[0], cl = validChatLines(m);
-        if (cl.length) {
-          html.push(`<div class="msg-wrapper" data-msg-id="${esc(m.id)}">${cl.map((line) => `<div class="bubble theirs" data-reply="${esc(speaker)}"><span class="bubble-name">${esc(speaker)}<span class="bubble-time">${msgTime(m.completed || m.created)}</span></span>${messageTextHtml(line, m.attachments)}</div>`).join("")}</div>`);
-        }
-      });
+    msgs.forEach((m) => {
+      const speaker = (m.name || "员工").split(" ").slice(-1)[0], cl = validChatLines(m);
+      if (cl.length) {
+        const bubbles = cl.map((line, index) => {
+          displayTs = nextChatDisplayTs(displayTs, m, index);
+          return `<div class="bubble theirs" data-reply="${esc(speaker)}"><span class="bubble-name">${esc(speaker)}<span class="bubble-time">${msgTime(displayTs, true)}</span></span>${messageTextHtml(line, m.attachments)}</div>`;
+        }).join("");
+        html.push(`<div class="msg-wrapper" data-msg-id="${esc(m.id)}">${bubbles}</div>`);
+      }
+    });
     container.innerHTML = html.join("");
   });
   restoreScroll(body, "mobile", threadKey);
@@ -319,24 +396,30 @@ function renderMobileShell() {
   renderMobileContacts();
   renderMobileCompany();
   renderMobileChatScreen();
+  renderMobileTaskSheet();
 }
-function openMobileChatPrivate(id) {
-  mobileState.returnTab = mobileState.tab || "messages";
+function openMobileChatPrivate(id, options = {}) {
+  mobileState.returnTab = options.returnTab || mobileState.tab || "messages";
   mobileState.chatOpen = true;
   mobileState.chatMode = "private";
   mobileState.agent = id;
+  mobileState.taskDetailOpen = false;
+  mobileState.taskDetailId = null;
   scrollState.mobile.key = "";
   closeMentionMenu("mobile");
   selected = id;
   setChatMode("private");
   select(id, false);
   renderMobileShell();
+  if (options.prefill) requestAnimationFrame(() => focusChatInput("mobile", options.prefill));
 }
 function openMobileChatGroup(conversation = "team") {
   mobileState.returnTab = mobileState.tab || "messages";
   mobileState.chatOpen = true;
   mobileState.chatMode = "group";
   mobileState.conversation = conversation;
+  mobileState.taskDetailOpen = false;
+  mobileState.taskDetailId = null;
   scrollState.mobile.key = "";
   closeMentionMenu("mobile");
   setChatMode("group");
@@ -622,10 +705,10 @@ function renderChat() {
         wrapper.dataset.msgId = m.id;
         box.appendChild(wrapper);
       }
-      const reply = cleanSpeechText(m.reply || "");
+      const reply = privateReplyText(m);
       wrapper.innerHTML = [
         m.prompt ? `<div class="bubble mine">${messageTextHtml(m.prompt, m.attachments)}${renderOwnBubbleMeta(m)}</div>` : "",
-        `<div class="bubble theirs ${reply ? "" : "pending"}"><span class="bubble-name">${esc(m.name || "员工")}<span class="bubble-time">${msgTime(m.completed || m.created)}</span></span>${reply ? messageTextHtml(reply, m.attachments) : m.status === "blocked" ? "遇到问题，正在整理需要你决定的事项..." : "正在处理并组织回复..."}</div>`
+        `<div class="bubble theirs ${reply ? "" : "pending"}"><span class="bubble-name">${esc(m.name || "员工")}<span class="bubble-time">${msgTime(m.completed || m.created)}</span></span>${reply ? messageTextHtml(reply, m.attachments) : pendingReplyLabel(m)}</div>`
       ].join("");
     });
     restoreScroll(box, "desktop", threadKey);
@@ -668,11 +751,16 @@ function renderChat() {
       msgs.sort((a, b) => (a.created || 0) - (b.created || 0) || (a.round || 1) - (b.round || 1));
       const boss = msgs.find((m) => m.origin === "boss" && m.prompt) || msgs.find((m) => m.prompt);
       const html = [];
+      let displayTs = 0;
       if (boss) html.push(`<div class="msg-wrapper" data-msg-id="boss-${esc(conv)}"><div class="bubble mine">${messageTextHtml(boss.prompt, boss.attachments)}${renderOwnBubbleMeta(boss)}</div></div>`);
       msgs.forEach((m) => {
         const short = (m.name || "员工").split(" ").slice(-1)[0], cl = validChatLines(m);
         if (cl.length) {
-          html.push(`<div class="msg-wrapper" data-msg-id="${esc(m.id)}">${cl.map((line) => `<div class="bubble theirs" data-reply="${esc(short)}"><span class="bubble-name">${esc(short)}<span class="bubble-time">${msgTime(m.completed || m.created)}</span></span>${messageTextHtml(line, m.attachments)}</div>`).join("")}</div>`);
+          const bubbles = cl.map((line, index) => {
+            displayTs = nextChatDisplayTs(displayTs, m, index);
+            return `<div class="bubble theirs" data-reply="${esc(short)}"><span class="bubble-name">${esc(short)}<span class="bubble-time">${msgTime(displayTs, true)}</span></span>${messageTextHtml(line, m.attachments)}</div>`;
+          }).join("");
+          html.push(`<div class="msg-wrapper" data-msg-id="${esc(m.id)}">${bubbles}</div>`);
         }
       });
       container.innerHTML = html.join("");
@@ -845,6 +933,27 @@ document.querySelector("#mobileContactsList").addEventListener("click", (e) => {
   if (!item) return;
   item.dataset.openThread === "group" ? openMobileChatGroup(item.dataset.conversation || "team") : openMobileChatPrivate(item.dataset.agent);
 });
+document.querySelector("#mobileTaskBoard").addEventListener("click", (e) => {
+  const card = e.target.closest("[data-open-task]");
+  if (!card) return;
+  openMobileTaskDetail(card.dataset.openTask);
+});
+document.querySelector("#mobileTaskSheet").addEventListener("click", (e) => {
+  const task = currentTaskDetail();
+  if (e.target.closest("[data-close-task-sheet]") || e.target.closest("#mobileTaskSheetClose")) {
+    closeMobileTaskDetail();
+    return;
+  }
+  if (e.target.closest("#mobileTaskSheetOpenChat")) {
+    if (!task) return;
+    openMobileChatPrivate(task.assignee, { returnTab: "company" });
+    return;
+  }
+  if (e.target.closest("#mobileTaskSheetResolve")) {
+    if (!task) return;
+    openMobileChatPrivate(task.assignee, { returnTab: "company", prefill: taskFollowupDraft(task) });
+  }
+});
 document.querySelector("#mobileSearch").addEventListener("input", () => renderMobileShell());
 document.querySelector("#mobileContactSearch").addEventListener("input", () => renderMobileShell());
 (_a = document.querySelector("#mobileOpenOffice")) == null ? void 0 : _a.addEventListener("click", () => toggleOffice(true));
@@ -930,9 +1039,21 @@ document.querySelector("#mobileContactSearch").addEventListener("input", () => r
   openMobileChatGroup("team");
 });
 function closeMobileChatView() {
-  mobileState.chatOpen = false;
-  mobileState.tab = mobileState.returnTab || "messages";
-  renderMobileShell();
+  if (!mobileChatScreen) {
+    mobileState.chatOpen = false;
+    mobileState.tab = mobileState.returnTab || "messages";
+    renderMobileShell();
+    return;
+  }
+  mobileChatScreen.classList.remove("dragging");
+  mobileChatScreen.style.removeProperty("--mobile-chat-offset");
+  mobileChatScreen.classList.add("closing");
+  setTimeout(() => {
+    mobileState.chatOpen = false;
+    mobileState.tab = mobileState.returnTab || "messages";
+    mobileChatScreen.classList.remove("closing");
+    renderMobileShell();
+  }, 210);
 }
 (_l = document.querySelector("#mobileChatBack")) == null ? void 0 : _l.addEventListener("click", () => {
   closeMobileChatView();
@@ -949,6 +1070,7 @@ function beginMobileSwipeBack(touch) {
   const target = touch.target;
   if (target && target.closest("input, textarea, button, a, .chat-panel, .chat-tools, .bubble-file, .bubble-attachments")) return;
   mobileSwipeBack = { startX: point.x, startY: point.y, armed: false };
+  mobileChatScreen.classList.add("dragging");
 }
 function moveMobileSwipeBack(touch) {
   if (!mobileSwipeBack || !mobileState.chatOpen || !isMobileView()) return;
@@ -957,18 +1079,23 @@ function moveMobileSwipeBack(touch) {
   const dy = point.y - mobileSwipeBack.startY;
   if (!mobileSwipeBack.armed) {
     if (dx <= 0 || Math.abs(dy) > 32 && Math.abs(dy) > Math.abs(dx)) {
+      mobileChatScreen == null ? void 0 : mobileChatScreen.classList.remove("dragging");
+      mobileChatScreen == null ? void 0 : mobileChatScreen.style.removeProperty("--mobile-chat-offset");
       mobileSwipeBack = null;
       return;
     }
     if (dx < 18 || Math.abs(dx) < Math.abs(dy)) return;
     mobileSwipeBack.armed = true;
   }
+  mobileChatScreen == null ? void 0 : mobileChatScreen.style.setProperty("--mobile-chat-offset", `${Math.max(0, Math.min(dx, window.innerWidth || 420))}px`);
   if (dx >= 88 && Math.abs(dy) <= 72) {
     closeMobileChatView();
     mobileSwipeBack = null;
   }
 }
 function endMobileSwipeBack() {
+  mobileChatScreen == null ? void 0 : mobileChatScreen.classList.remove("dragging");
+  mobileChatScreen == null ? void 0 : mobileChatScreen.style.removeProperty("--mobile-chat-offset");
   mobileSwipeBack = null;
 }
 mobileChatScreen == null ? void 0 : mobileChatScreen.addEventListener("touchstart", (e) => {

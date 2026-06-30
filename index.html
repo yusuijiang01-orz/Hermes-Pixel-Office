@@ -190,6 +190,27 @@
       </form>
       <div class="mention-menu" id="mobileMentionMenu"></div>
     </section>
+    <section class="mobile-task-sheet" id="mobileTaskSheet">
+      <div class="mobile-task-sheet-backdrop" data-close-task-sheet="1"></div>
+      <div class="mobile-task-sheet-card">
+        <div class="mobile-task-sheet-head">
+          <div>
+            <div class="mobile-task-sheet-kicker">任务详情</div>
+            <div class="mobile-task-sheet-title" id="mobileTaskSheetTitle">读取中</div>
+          </div>
+          <button type="button" class="mobile-task-sheet-close" id="mobileTaskSheetClose">×</button>
+        </div>
+        <div class="mobile-task-sheet-meta" id="mobileTaskSheetMeta"></div>
+        <div class="mobile-task-sheet-body">
+          <p id="mobileTaskSheetSummary">正在整理任务内容...</p>
+          <div class="mobile-task-sheet-blocked" id="mobileTaskSheetBlocked"></div>
+        </div>
+        <div class="mobile-task-sheet-actions">
+          <button type="button" class="mobile-ghost-btn" id="mobileTaskSheetOpenChat">打开私聊</button>
+          <button type="button" class="mobile-solid-btn" id="mobileTaskSheetResolve">带着任务去处理</button>
+        </div>
+      </div>
+    </section>
   </section>
   <script>
     window.__hermesBootAlive = '';

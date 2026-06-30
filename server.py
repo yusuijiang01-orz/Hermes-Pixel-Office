@@ -1437,8 +1437,33 @@ def sanitize_chat_reply(reply, mode="private"):
             return "\n".join(f"[CHAT] {line}" for line in lines)
         if is_non_chat_reply(raw):
             return None
-    if mode == "private" and is_error_reply(raw):
-        return None
+    if mode == "private":
+        if is_error_reply(raw):
+            return None
+        raw = re.sub(
+            r"^\s*⚠️?\s*Reached maximum iterations\s*\([^)]+\)\.\s*Requesting summary\.\.\.\s*",
+            "",
+            raw,
+            flags=re.I,
+        ).strip()
+        chat_lines = embedded_chat_lines(raw)
+        if chat_lines:
+            return "\n".join(chat_lines)
+        cleaned_lines = []
+        for line in raw.splitlines():
+            clean = re.sub(r"\s+", " ", line).strip()
+            if not clean:
+                if cleaned_lines and cleaned_lines[-1]:
+                    cleaned_lines.append("")
+                continue
+            if clean.startswith("session_id:"):
+                continue
+            if is_non_chat_reply(clean):
+                continue
+            cleaned_lines.append(clean)
+        raw = "\n".join(cleaned_lines).strip()
+        if not raw or is_non_chat_reply(raw):
+            return None
     return raw
 
 
@@ -1924,6 +1949,37 @@ def strip_project_title(title):
     return clean or "项目执行任务"
 
 
+def compact_task_text(value, limit=180):
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    return text[:limit]
+
+
+def visible_project_task_summary(task):
+    body = str(task.get("body") or "")
+    lines = []
+    for raw in body.splitlines():
+        line = re.sub(r"\s+", " ", raw).strip()
+        if not line:
+            continue
+        if line.startswith(("群聊话题：", "话题来源：", "群聊记录：", "群聊规则：")):
+            continue
+        if line.startswith(("你的身份是", "- ", "这是即时聊天", "普通闲聊不要制造任务")):
+            continue
+        if "Hermes Pixel Works 的实时内部群聊" in line:
+            continue
+        line = re.sub(r"^老板说：", "", line).strip()
+        line = re.sub(r"^\[[^\]]+\]\s*", "", line).strip()
+        if len(line) < 4:
+            continue
+        lines.append(line)
+        if len(" ".join(lines)) >= 180:
+            break
+    summary = compact_task_text(" ".join(lines), 180)
+    if summary:
+        return summary
+    return compact_task_text(strip_project_title(task.get("title", "")), 120)
+
+
 def project_notice_key(task):
     title = strip_project_title(task.get("title", ""))
     normalized = re.sub(r"\s+", "", title.lower())
@@ -2084,6 +2140,8 @@ def visible_project_task_items(tasks, limit=24):
             "kind": kind,
             "owner_name": PROFILES.get(assignee, PROFILES["default"])["name"],
             "owner_short": PROFILES.get(assignee, PROFILES["default"])["short"],
+            "summary": visible_project_task_summary(task),
+            "blocked_reason": compact_task_text(sanitize_chat_reply(task.get("result"), "private") if task.get("status") == "blocked" else "", 220),
         })
     items.sort(
         key=lambda item: (
