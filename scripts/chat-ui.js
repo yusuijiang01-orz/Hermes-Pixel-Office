@@ -214,12 +214,12 @@ function renderMobileChatScreen() {
     const wanted = new Set(items.map((m) => String(m.id)));
     [...existing].forEach((id) => {
       if (!wanted.has(id)) {
-        const el = body.querySelector(`.msg-wrapper[data-msg-id="${id}"]`);
+        const el = findDataNode(body, ".msg-wrapper[data-msg-id]", "msgId", id);
         if (el) el.remove();
       }
     });
     items.forEach((m) => {
-      let wrapper = body.querySelector(`.msg-wrapper[data-msg-id="${m.id}"]`);
+      let wrapper = findDataNode(body, ".msg-wrapper[data-msg-id]", "msgId", m.id);
       if (!wrapper) {
         wrapper = document.createElement("div");
         wrapper.className = "msg-wrapper";
@@ -257,12 +257,12 @@ function renderMobileChatScreen() {
   const wantedConv = /* @__PURE__ */ new Set([...groups.keys()]);
   [...existingConv].forEach((k) => {
     if (!wantedConv.has(k)) {
-      const el = body.querySelector(`.conv-group[data-conv-id="${k}"]`);
+      const el = findDataNode(body, ".conv-group[data-conv-id]", "convId", k);
       if (el) el.remove();
     }
   });
   [...groups.entries()].forEach(([key, msgs]) => {
-    let container = body.querySelector(`.conv-group[data-conv-id="${key}"]`);
+    let container = findDataNode(body, ".conv-group[data-conv-id]", "convId", key);
     if (!container) {
       container = document.createElement("div");
       container.className = "conv-group";
@@ -444,6 +444,11 @@ function previewFor(kind) {
 function inputFor(kind) {
   return document.querySelector(kind === "mobile" ? "#mobileChatInput" : "#message");
 }
+function findDataNode(root, selector, dataKey, value) {
+  if (!root) return null;
+  const expected = String(value ?? "");
+  return [...root.querySelectorAll(selector)].find((node) => String(node.dataset[dataKey] || "") === expected) || null;
+}
 function autoResizeInput(input) {
   if (!input) return;
   input.style.height = "auto";
@@ -566,12 +571,12 @@ function renderChat() {
     const wanted = new Set(items.map((m) => String(m.id)));
     [...existing].forEach((id) => {
       if (!wanted.has(id)) {
-        const el = box.querySelector(`.msg-wrapper[data-msg-id="${id}"]`);
+        const el = findDataNode(box, ".msg-wrapper[data-msg-id]", "msgId", id);
         if (el) el.remove();
       }
     });
     items.forEach((m) => {
-      let wrapper = box.querySelector(`.msg-wrapper[data-msg-id="${m.id}"]`);
+      let wrapper = findDataNode(box, ".msg-wrapper[data-msg-id]", "msgId", m.id);
       if (!wrapper) {
         wrapper = document.createElement("div");
         wrapper.className = "msg-wrapper";
@@ -609,12 +614,12 @@ function renderChat() {
     const wantedConv = /* @__PURE__ */ new Set([...groups.keys()]);
     [...existingConv].forEach((k) => {
       if (!wantedConv.has(k)) {
-        const el = box.querySelector(`.conv-group[data-conv-id="${k}"]`);
+        const el = findDataNode(box, ".conv-group[data-conv-id]", "convId", k);
         if (el) el.remove();
       }
     });
     [...groups.entries()].forEach(([conv, msgs]) => {
-      let container = box.querySelector(`.conv-group[data-conv-id="${conv}"]`);
+      let container = findDataNode(box, ".conv-group[data-conv-id]", "convId", conv);
       if (!container) {
         container = document.createElement("div");
         container.className = "conv-group";
@@ -875,11 +880,58 @@ document.querySelector("#mobileContactSearch").addEventListener("input", () => r
   mobileState.tab = "messages";
   openMobileChatGroup("team");
 });
-(_l = document.querySelector("#mobileChatBack")) == null ? void 0 : _l.addEventListener("click", () => {
+function closeMobileChatView() {
   mobileState.chatOpen = false;
   mobileState.tab = mobileState.returnTab || "messages";
   renderMobileShell();
+}
+(_l = document.querySelector("#mobileChatBack")) == null ? void 0 : _l.addEventListener("click", () => {
+  closeMobileChatView();
 });
+const mobileChatScreen = document.querySelector("#mobileChatScreen");
+let mobileSwipeBack = null;
+function swipePoint(touch) {
+  return { x: touch.clientX ?? touch.pageX ?? 0, y: touch.clientY ?? touch.pageY ?? 0 };
+}
+function beginMobileSwipeBack(touch) {
+  if (!mobileChatScreen || !mobileState.chatOpen || !isMobileView()) return;
+  const point = swipePoint(touch);
+  if (point.x > 28) return;
+  const target = touch.target;
+  if (target && target.closest("input, textarea, button, a, .chat-panel, .chat-tools, .bubble-file, .bubble-attachments")) return;
+  mobileSwipeBack = { startX: point.x, startY: point.y, armed: false };
+}
+function moveMobileSwipeBack(touch) {
+  if (!mobileSwipeBack || !mobileState.chatOpen || !isMobileView()) return;
+  const point = swipePoint(touch);
+  const dx = point.x - mobileSwipeBack.startX;
+  const dy = point.y - mobileSwipeBack.startY;
+  if (!mobileSwipeBack.armed) {
+    if (dx <= 0 || Math.abs(dy) > 32 && Math.abs(dy) > Math.abs(dx)) {
+      mobileSwipeBack = null;
+      return;
+    }
+    if (dx < 18 || Math.abs(dx) < Math.abs(dy)) return;
+    mobileSwipeBack.armed = true;
+  }
+  if (dx >= 88 && Math.abs(dy) <= 72) {
+    closeMobileChatView();
+    mobileSwipeBack = null;
+  }
+}
+function endMobileSwipeBack() {
+  mobileSwipeBack = null;
+}
+mobileChatScreen == null ? void 0 : mobileChatScreen.addEventListener("touchstart", (e) => {
+  if (e.touches.length !== 1) return;
+  beginMobileSwipeBack(e.touches[0]);
+}, { passive: true });
+mobileChatScreen == null ? void 0 : mobileChatScreen.addEventListener("touchmove", (e) => {
+  if (e.touches.length !== 1) return;
+  moveMobileSwipeBack(e.touches[0]);
+}, { passive: true });
+mobileChatScreen == null ? void 0 : mobileChatScreen.addEventListener("touchend", endMobileSwipeBack, { passive: true });
+mobileChatScreen == null ? void 0 : mobileChatScreen.addEventListener("touchcancel", endMobileSwipeBack, { passive: true });
 (_m = document.querySelector("#roomBack")) == null ? void 0 : _m.addEventListener("click", () => leaveRoom("button"));
 (_n = document.querySelector("#roomHome")) == null ? void 0 : _n.addEventListener("click", () => goCompanyHome());
 (_o = document.querySelector("#gameInteract")) == null ? void 0 : _o.addEventListener("click", () => leaveRoom("button"));

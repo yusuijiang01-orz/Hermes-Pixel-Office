@@ -54,9 +54,29 @@ function redirectToLogin() {
 function isAuthError(response, data) {
   return (response == null ? void 0 : response.status) === 401 || String((data == null ? void 0 : data.error) || "").includes("请先登录");
 }
+function apiUrl(path) {
+  try {
+    return new URL(path, window.location.origin || location.href).toString();
+  } catch (err) {
+    const cleanPath = String(path || "").startsWith("/") ? path : `/${String(path || "").replace(/^\/+/, "")}`;
+    return `${location.protocol}//${location.host}${cleanPath}`;
+  }
+}
+function safeRenderChatViews(mode) {
+  if (!state) return;
+  try {
+    state.messages = mergePendingMessages(state.messages || []);
+    if (mode === "group") mobileState.conversation = "team";
+    renderChat();
+    renderMobileShell();
+  } catch (err) {
+    console.warn("chat render failed", err);
+    scheduleRefresh(120);
+  }
+}
 function connectRealtime() {
   if (!window.EventSource || realtimeSource) return;
-  realtimeSource = new EventSource("/api/events");
+  realtimeSource = new EventSource(apiUrl("/api/events"));
   realtimeSource.addEventListener("open", () => {
     var _a2;
     realtimeConnected = true;
@@ -87,7 +107,7 @@ function connectRealtime() {
 }
 async function refresh() {
   try {
-    const r = await fetch("/api/state", { cache: "no-store", credentials: "same-origin" });
+    const r = await fetch(apiUrl("/api/state"), { cache: "no-store", credentials: "same-origin" });
     const data = await r.json();
     if (isAuthError(r, data)) {
       redirectToLogin();
@@ -152,16 +172,11 @@ async function sendChatMessage(inputSelector, mode, agentId) {
     _local: true
   };
   pendingMessages.push(tempMessage);
-  if (state) {
-    state.messages = mergePendingMessages(state.messages || []);
-    if (mode === "group") mobileState.conversation = "team";
-    renderChat();
-    renderMobileShell();
-  }
+  safeRenderChatViews(mode);
   beginFastRefresh();
   scheduleRefresh(80);
   try {
-    const r = await fetch("/api/message", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify({ mode, agent: agentId, message, attachments, board: ((_d = state == null ? void 0 : state.board) == null ? void 0 : _d.slug) || "default" }) }), data = await r.json();
+    const r = await fetch(apiUrl("/api/message"), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify({ mode, agent: agentId, message, attachments, board: ((_d = state == null ? void 0 : state.board) == null ? void 0 : _d.slug) || "default" }) }), data = await r.json();
     if (isAuthError(r, data)) {
       redirectToLogin();
       return;
@@ -174,11 +189,7 @@ async function sendChatMessage(inputSelector, mode, agentId) {
     scheduleRefresh(80);
   } catch (err) {
     pendingMessages = pendingMessages.map((item) => item.id === tempId ? { ...item, status: "blocked", reply: "消息未送达：" + err.message } : item);
-    if (state) {
-      state.messages = mergePendingMessages(state.messages || []);
-      renderChat();
-      renderMobileShell();
-    }
+    safeRenderChatViews(mode);
     alert("消息未送达：" + err.message);
   } finally {
     sendLocks.delete(lockKey);
