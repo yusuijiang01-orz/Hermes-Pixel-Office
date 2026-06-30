@@ -19,6 +19,7 @@ from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(__file__).resolve().parent
 COMPANY_STATE_PATH = ROOT / "company_state.json"
+AUTH_USERS_PATH = ROOT / "auth.users.json"
 ERROR_LOG_PATH = ROOT / "runtime_errors.log"
 UPLOAD_DIR = ROOT / "uploads" / "chat"
 DEFAULT_HERMES_EXE = r"C:\Users\admin\AppData\Local\hermes\hermes-agent\venv\Scripts\hermes.exe" if os.name == "nt" else "/usr/local/bin/hermes"
@@ -41,6 +42,7 @@ PROFILES = {
     "planner": {"name": "策划主编 小韩", "short": "小韩", "role": "主管 / 游戏策划", "personality": "有主见、行动快、产品意识强；负责取舍、拆解和带队", "chat": "反应快、有主见，会追问玩家价值；会拍板，也会在群里接梗、催人、阴阳怪气两句"},
     "researcher": {"name": "研究员 小研", "short": "小研", "role": "玩法研究", "personality": "好奇、较真、证据优先；擅长挑战假设和设计实验", "chat": "好奇心强，喜欢问为什么、贴证据、挑战直觉；会把别人一句话拆开继续追问，也会认真吐槽烂设计"},
     "writer": {"name": "文案 小文", "short": "小文", "role": "叙事与文案", "personality": "细腻、有想象力、关注玩家感受；维护叙事与体验一致性", "chat": "对语气和玩家感受敏锐，善于联想、接梗和把抽象想法变成画面；毒舌时很轻，但会扎心"},
+    "linxiaoyan": {"name": "品牌内容 小岩", "short": "小岩", "role": "品牌内容 / 对外表达", "personality": "克制、细腻、清醒，重视语气、审美和人与人之间的分寸感", "chat": "说话自然克制，不会客服腔；很会抓细节、调语气和整理表达，也会在群里轻轻吐槽不顺眼的地方"},
 }
 ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 GROUP_RE = re.compile(r"\[(老板|内部)群聊:([^:\]]+)(?::r(\d+))?\]")
@@ -72,14 +74,16 @@ SCENE_OBJECT_IDS = {
     "desk_planner",
     "desk_researcher",
     "desk_writer",
+    "desk_linxiaoyan",
     "breakbar",
     "corgi",
     "bookshelf",
     "plant",
 }
-STATE_CACHE = None
-STATE_CACHE_SIGNATURE = ""
+STATE_CACHE = {}
+STATE_CACHE_SIGNATURE = {}
 STATE_REFRESH_WAKE = threading.Event()
+REQUEST_CONTEXT = threading.local()
 ROBOTIC_CHAT_PREFIXES = (
     "任务完成", "任务已完成", "群聊回复完成", "以自然口语化方式", "保持沉默是合理的",
     "老板宣布散会", "群里没有需要", "作为", "围绕", "补充了", "强调了", "追问了"
@@ -229,6 +233,14 @@ DEFAULT_COMPANY_STATE = {
             "quirks": ["表面柔和其实很会吐槽", "开会时会突然给角色起外号"],
             "social": {"close_to": ["researcher"], "sparks_with": ["planner"], "quietly_observes": ["default"]},
         },
+        "linxiaoyan": {
+            "archetype": "品牌内容策略",
+            "hobbies": ["看展", "咖啡店观察人类", "收集有质感的文案和海报"],
+            "likes": ["克制但有记忆点的表达", "低饱和审美", "被认真对待的细节"],
+            "dislikes": ["太像客服的话术", "过度热闹但空心的包装", "失信和敷衍"],
+            "quirks": ["会默默改掉别人口中的别扭语气", "看到排版不顺眼会先截图存起来"],
+            "social": {"close_to": ["writer"], "aligns_with": ["planner"], "quietly_observes": ["default"]},
+        },
     },
 }
 AUTO_CHAT_TOPICS = {
@@ -292,6 +304,97 @@ def hermes_board_dir(board_slug):
     return hermes_state_root() / "kanban" / "boards" / board_slug
 
 
+def configured_auth_users():
+    users = {}
+    if WEB_AUTH_USER and WEB_AUTH_PASSWORD:
+        users[WEB_AUTH_USER] = {
+            "password": WEB_AUTH_PASSWORD,
+            "board": FAST_BOARD_SLUG,
+            "company_state": COMPANY_STATE_PATH.name,
+            "studio_name": DEFAULT_COMPANY_STATE["studio_name"],
+        }
+    if AUTH_USERS_PATH.exists():
+        try:
+            payload = json.loads(AUTH_USERS_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            payload = {}
+        for username, info in (payload if isinstance(payload, dict) else {}).items():
+            if not isinstance(info, dict):
+                continue
+            password = str(info.get("password") or "").strip()
+            if not username or not password:
+                continue
+            current = dict(users.get(username) or {})
+            current["password"] = password
+            current["board"] = str(info.get("board") or current.get("board") or username).strip()
+            current["company_state"] = str(info.get("company_state") or current.get("company_state") or f"company_state.{username}.json").strip()
+            current["studio_name"] = str(info.get("studio_name") or current.get("studio_name") or f"{username} Pixel Works").strip()
+            users[username] = current
+    return users
+
+
+def production_single_company_mode():
+    flag = str(os.environ.get("HERMES_SINGLE_COMPANY_MODE", "1" if WEB_AUTH_USER and WEB_AUTH_PASSWORD else "0")).strip().lower()
+    return flag not in ("0", "false", "no", "off")
+
+
+def public_registration_enabled():
+    flag = str(os.environ.get("HERMES_ALLOW_REGISTRATION", "")).strip().lower()
+    return flag in ("1", "true", "yes", "on") and not production_single_company_mode()
+
+
+def default_auth_username():
+    if WEB_AUTH_USER:
+        return WEB_AUTH_USER
+    users = configured_auth_users()
+    if users:
+        return next(iter(users))
+    return "admin"
+
+
+def current_request_username():
+    return str(getattr(REQUEST_CONTEXT, "username", "") or "").strip()
+
+
+def set_request_username(username):
+    REQUEST_CONTEXT.username = str(username or "").strip()
+
+
+def run_as_user(username, fn):
+    previous = current_request_username()
+    set_request_username(username)
+    try:
+        return fn()
+    finally:
+        set_request_username(previous)
+
+
+def current_user_config(username=None):
+    user = str(username or current_request_username() or default_auth_username()).strip()
+    users = configured_auth_users()
+    config = dict(users.get(user) or {})
+    if not config:
+        config = {
+            "password": WEB_AUTH_PASSWORD,
+            "board": FAST_BOARD_SLUG,
+            "company_state": COMPANY_STATE_PATH.name,
+            "studio_name": DEFAULT_COMPANY_STATE["studio_name"],
+        }
+    config.setdefault("board", FAST_BOARD_SLUG)
+    config.setdefault("company_state", COMPANY_STATE_PATH.name)
+    config.setdefault("studio_name", DEFAULT_COMPANY_STATE["studio_name"])
+    return user, config
+
+
+def current_company_state_path(username=None):
+    _, config = current_user_config(username)
+    filename = str(config.get("company_state") or COMPANY_STATE_PATH.name).strip()
+    path = Path(filename)
+    if not path.is_absolute():
+        path = ROOT / path
+    return path
+
+
 def get_world_state():
     now = datetime.now()
     minutes = now.hour * 60 + now.minute
@@ -336,18 +439,28 @@ def employee_presence_for(world, status, owner_chat=False, blocked=False):
     return "home"
 
 
-def load_company_state():
-    if not COMPANY_STATE_PATH.exists():
-        COMPANY_STATE_PATH.write_text(
-            json.dumps(DEFAULT_COMPANY_STATE, ensure_ascii=False, indent=2),
+def load_company_state(path=None, username=None):
+    target_path = Path(path) if path else current_company_state_path(username)
+    user, config = current_user_config(username)
+    if not target_path.exists():
+        initial = json.loads(json.dumps(DEFAULT_COMPANY_STATE, ensure_ascii=False))
+        initial["studio_name"] = str(config.get("studio_name") or initial.get("studio_name") or f"{user} Pixel Works")
+        if user != default_auth_username():
+            initial["pending_notices"] = [
+                f"公司公告：当前登录账号 {user} 使用独立公司状态与独立聊天记录。",
+                "招聘中：欢迎补强移动端 UI、场景交互与小游戏体验。"
+            ]
+            initial["recent_events"] = [{"time": datetime.now().strftime("%Y-%m-%d"), "text": f"{user} 的像素公司已初始化。"}]
+        target_path.write_text(
+            json.dumps(initial, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
-        return json.loads(json.dumps(DEFAULT_COMPANY_STATE, ensure_ascii=False))
+        return initial
     try:
-        data = json.loads(COMPANY_STATE_PATH.read_text(encoding="utf-8"))
+        data = json.loads(target_path.read_text(encoding="utf-8"))
     except Exception:
         data = json.loads(json.dumps(DEFAULT_COMPANY_STATE, ensure_ascii=False))
-    data.setdefault("studio_name", DEFAULT_COMPANY_STATE["studio_name"])
+    data.setdefault("studio_name", str(config.get("studio_name") or DEFAULT_COMPANY_STATE["studio_name"]))
     data.setdefault("version", 1)
     data.setdefault("open_roles", [])
     data.setdefault("pending_notices", [])
@@ -405,14 +518,15 @@ def load_company_state():
     return data
 
 
-def save_company_state(data):
+def save_company_state(data, path=None, username=None):
+    target_path = Path(path) if path else current_company_state_path(username)
     data["recent_events"] = (data.get("recent_events") or [])[-80:]
     data["team_decisions"] = (data.get("team_decisions") or [])[-80:]
     data["stale_project_reviews"] = (data.get("stale_project_reviews") or [])[-80:]
     data["universe_events"] = (data.get("universe_events") or [])[-120:]
     data["universe_ideas"] = (data.get("universe_ideas") or [])[-120:]
     data["universe_tasks"] = (data.get("universe_tasks") or [])[-120:]
-    COMPANY_STATE_PATH.write_text(
+    target_path.write_text(
         json.dumps(data, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
@@ -1353,7 +1467,7 @@ def is_diagnostic_chat_task(task):
 
 
 def web_auth_enabled():
-    return bool(WEB_AUTH_USER and WEB_AUTH_PASSWORD)
+    return bool(configured_auth_users())
 
 
 def plugin_api_key():
@@ -1368,15 +1482,15 @@ def sign_auth_value(payload):
     return hmac.new(WEB_AUTH_SECRET.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
-def make_auth_cookie():
+def make_auth_cookie(username):
     exp = int(time.time()) + WEB_AUTH_MAX_AGE
-    payload = f"{WEB_AUTH_USER}:{exp}"
+    payload = f"{username}:{exp}"
     return f"{payload}:{sign_auth_value(payload)}"
 
 
 def verify_auth_cookie(cookie_header):
     if not web_auth_enabled():
-        return True
+        return default_auth_username()
     cookies = {}
     for part in str(cookie_header or "").split(";"):
         if "=" not in part:
@@ -1386,12 +1500,13 @@ def verify_auth_cookie(cookie_header):
     raw = cookies.get("hermes_session", "")
     parts = raw.split(":")
     if len(parts) != 3:
-        return False
+        return ""
     user, exp_text, sig = parts
-    if user != WEB_AUTH_USER or not exp_text.isdigit() or int(exp_text) < int(time.time()):
-        return False
+    users = configured_auth_users()
+    if user not in users or not exp_text.isdigit() or int(exp_text) < int(time.time()):
+        return ""
     payload = f"{user}:{exp_text}"
-    return hmac.compare_digest(sig, sign_auth_value(payload))
+    return user if hmac.compare_digest(sig, sign_auth_value(payload)) else ""
 
 
 def safe_next_path(raw):
@@ -1408,9 +1523,89 @@ def with_cache_buster(path_value):
     return f"{target}{joiner}v={stamp}"
 
 
-def login_page(error="", next_path="/"):
-    error_html = f'<div class="error">{error}</div>' if error else ""
+def auth_error_html(error):
+    if not error:
+        return ""
+    if isinstance(error, dict):
+        login_error = str(error.get("login") or "").strip()
+        register_error = str(error.get("register") or "").strip()
+        blocks = []
+        if login_error:
+            blocks.append(f'<div class="error">{login_error}</div>')
+        if register_error:
+            blocks.append(f'<div class="error secondary">{register_error}</div>')
+        return "".join(blocks)
+    return f'<div class="error">{error}</div>'
+
+
+def auth_success_html(message):
+    return f'<div class="success">{message}</div>' if message else ""
+
+
+def slugify_username(value):
+    slug = re.sub(r"[^a-z0-9]+", "-", str(value or "").strip().lower())
+    slug = slug.strip("-")
+    return slug[:40] or "user"
+
+
+def validate_registration(username, password, confirm_password):
+    name = str(username or "").strip()
+    pwd = str(password or "")
+    confirm = str(confirm_password or "")
+    if not re.fullmatch(r"[A-Za-z0-9_]{3,24}", name):
+        return "用户名需为 3-24 位，只能包含字母、数字或下划线。"
+    if name.lower() in {"admin", "root", "system"}:
+        return "这个用户名不能注册，请换一个。"
+    users = configured_auth_users()
+    if name in users:
+        return "这个用户名已经存在。"
+    if len(pwd) < 6:
+        return "密码至少 6 位。"
+    if pwd != confirm:
+        return "两次输入的密码不一致。"
+    return ""
+
+
+def register_auth_user(username, password):
+    username = str(username or "").strip()
+    users = {}
+    if AUTH_USERS_PATH.exists():
+        try:
+            users = json.loads(AUTH_USERS_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            users = {}
+    if not isinstance(users, dict):
+        users = {}
+    slug = slugify_username(username)
+    board = f"{slug}-company"
+    company_state = f"company_state.{slug}.json"
+    users[username] = {
+        "password": password,
+        "board": board,
+        "company_state": company_state,
+        "studio_name": f"{username} Pixel Works",
+    }
+    AUTH_USERS_PATH.write_text(json.dumps(users, ensure_ascii=False, indent=2), encoding="utf-8")
+    ensure_board_exists(board, name=f"{username} Pixel Works", description=f"{username} 的独立像素公司看板")
+    state = load_company_state(username=username)
+    state["studio_name"] = f"{username} Pixel Works"
+    notices = state.get("pending_notices") or []
+    if not any("独立公司" in str(item) for item in notices):
+        notices.insert(0, f"公司公告：{username} 刚刚注册，已创建独立公司、独立聊天记录和独立任务板。")
+    state["pending_notices"] = notices[:12]
+    state["recent_events"] = (state.get("recent_events") or []) + [{
+        "time": datetime.now().strftime("%Y-%m-%d"),
+        "text": f"{username} 完成注册，独立像素公司已启用。"
+    }]
+    save_company_state(state, username=username)
+    return users[username]
+
+
+def login_page(error="", next_path="/", success=""):
+    error_html = auth_error_html(error)
+    success_html = auth_success_html(success)
     next_path = safe_next_path(next_path)
+    register_html = f'<div class="register-row"><a class="register-link" href="/register?next={next_path}">注册</a></div>' if public_registration_enabled() else ""
     return f"""<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -1435,6 +1630,7 @@ def login_page(error="", next_path="/"):
     .badge{{display:inline-block;margin-bottom:10px;padding:5px 8px;border:2px solid #f0c85a;background:#26363d;color:#f0c85a;font-size:11px;font-weight:900;letter-spacing:.08em}}
     h1{{margin:0;font-size:24px;letter-spacing:.02em}}.brand{{color:#f0c85a}}p{{margin:8px 0 0;color:#9eb5b0;font-size:13px;line-height:1.6}}
     form{{display:grid;gap:14px;padding:20px}}
+    h2{{margin:0;font-size:18px;color:#334148}}
     .pixel-strip{{display:grid;grid-template-columns:repeat(10,1fr);gap:4px}}
     .pixel-strip i{{display:block;height:10px;background:#d6c06f;border:2px solid #314046}}
     .pixel-strip i:nth-child(2n){{background:#8fcfc2}}
@@ -1444,7 +1640,12 @@ def login_page(error="", next_path="/"):
     input:focus{{border-color:#d8aa39;box-shadow:0 0 0 3px #f0c85a55,inset 0 -3px 0 #d9d1bb}}
     button{{height:50px;border:3px solid #314046;background:#f0c85a;color:#172126;font-weight:900;font-size:17px;box-shadow:4px 4px 0 #a48b3a}}
     button:hover{{transform:translate(-1px,-1px);box-shadow:5px 5px 0 #a48b3a}}
+    .register-row{{text-align:center}}
+    .register-link{{display:inline-flex;align-items:center;justify-content:center;width:max-content;padding:2px 0;border:0;background:none;color:#b88222;font-weight:900;font-size:18px;line-height:1;text-decoration:none;border-bottom:3px solid #f0c85a;box-shadow:0 2px 0 #314046}}
+    .register-link:hover{{color:#8f5f10;border-bottom-color:#d8aa39;transform:translateY(-1px)}}
     .error{{padding:10px 12px;border:2px solid #b64f45;background:#ffe6de;color:#8f2e25;font-size:13px;font-weight:900}}
+    .error.secondary{{border-color:#9e6a2d;background:#fff2de;color:#845220}}
+    .success{{padding:10px 12px;border:2px solid #3f8d58;background:#e7ffe9;color:#1d6b37;font-size:13px;font-weight:900}}
     .hint{{font-size:12px;color:#6a777a;line-height:1.6}}
     .footer{{display:flex;justify-content:space-between;align-items:center;gap:10px;color:#6a777a;font-size:12px}}
     .footer b{{color:#334148}}
@@ -1455,14 +1656,83 @@ def login_page(error="", next_path="/"):
   <div class="skyline"></div>
   <section class="card">
     <div class="head"><div class="badge">PIXEL ACCESS TERMINAL</div><h1><span class="brand">HERMES</span> PIXEL WORKS</h1><p>像进入公司前台一样登录，不再弹浏览器认证窗。登录后会在本设备保持 30 天。</p></div>
+    {error_html}
+    {success_html}
     <form method="post" action="/login">
       <div class="pixel-strip"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-      {error_html}
+      <h2>登录</h2>
       <input type="hidden" name="next" value="{next_path}">
-      <label>用户名<input name="username" autocomplete="username" value="{WEB_AUTH_USER or 'admin'}"></label>
+      <label>用户名<input name="username" autocomplete="username" value="{default_auth_username()}"></label>
       <label>密码<input name="password" type="password" autocomplete="current-password" autofocus></label>
       <button type="submit">进入像素公司</button>
       <div class="footer"><span class="hint">这是 Hermes 自己的网页登录。</span><b>COOKIE SESSION</b></div>
+      {register_html}
+    </form>
+  </section>
+</body>
+</html>"""
+
+
+def register_page(error="", next_path="/", register_username="", success=""):
+    error_html = auth_error_html(error)
+    success_html = auth_success_html(success)
+    next_path = safe_next_path(next_path)
+    register_username = str(register_username or "").strip()
+    return f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+  <title>Hermes Pixel Works 注册</title>
+  <style>
+    *{{box-sizing:border-box}}html,body{{margin:0;min-height:100%;color:#edf5f0;font-family:"Microsoft YaHei",Arial,sans-serif}}
+    body{{display:grid;place-items:center;padding:24px;overflow:hidden;background:
+      radial-gradient(circle at top,#30505b 0,#142229 38%,#0b1114 100%)}}
+    body::before{{content:"";position:fixed;inset:0;pointer-events:none;opacity:.18;background-image:
+      linear-gradient(rgba(255,255,255,.08) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(255,255,255,.08) 1px,transparent 1px);background-size:18px 18px}}
+    .skyline{{position:fixed;left:0;right:0;bottom:0;height:34vh;pointer-events:none;opacity:.9;background:
+      linear-gradient(180deg,transparent 0,transparent 46%,#0d1518 46%,#0d1518 100%)}}
+    .skyline::before{{content:"";position:absolute;left:0;right:0;bottom:0;height:72%;background:
+      linear-gradient(90deg,#091013 0 4%,transparent 4% 8%,#091013 8% 15%,transparent 15% 19%,#091013 19% 26%,transparent 26% 31%,#091013 31% 39%,transparent 39% 44%,#091013 44% 53%,transparent 53% 58%,#091013 58% 66%,transparent 66% 71%,#091013 71% 81%,transparent 81% 87%,#091013 87% 100%)}}
+    .card{{position:relative;z-index:1;width:min(460px,100%);border:4px solid #314046;background:#f7f1df;color:#1a2528;box-shadow:0 0 0 4px #0b1114,10px 10px 0 #05090b}}
+    .head{{padding:18px 20px 16px;border-bottom:4px solid #314046;background:linear-gradient(180deg,#1c2d34 0,#17242a 100%);color:#f7f1df}}
+    .badge{{display:inline-block;margin-bottom:10px;padding:5px 8px;border:2px solid #f0c85a;background:#26363d;color:#f0c85a;font-size:11px;font-weight:900;letter-spacing:.08em}}
+    h1{{margin:0;font-size:24px;letter-spacing:.02em}}.brand{{color:#f0c85a}}p{{margin:8px 0 0;color:#9eb5b0;font-size:13px;line-height:1.6}}
+    form{{display:grid;gap:14px;padding:20px}}
+    h2{{margin:0;font-size:18px;color:#334148}}
+    .pixel-strip{{display:grid;grid-template-columns:repeat(10,1fr);gap:4px}}
+    .pixel-strip i{{display:block;height:10px;background:#d6c06f;border:2px solid #314046}}
+    .pixel-strip i:nth-child(2n){{background:#8fcfc2}}
+    .pixel-strip i:nth-child(3n){{background:#e07a5f}}
+    label{{display:grid;gap:6px;font-weight:900;color:#334148}}
+    input{{height:48px;border:3px solid #5d6b70;background:#fffdf5;color:#172126;padding:0 12px;font-size:17px;outline:none;box-shadow:inset 0 -3px 0 #d9d1bb}}
+    input:focus{{border-color:#d8aa39;box-shadow:0 0 0 3px #f0c85a55,inset 0 -3px 0 #d9d1bb}}
+    button{{height:50px;border:3px solid #314046;background:#f0c85a;color:#172126;font-weight:900;font-size:17px;box-shadow:4px 4px 0 #a48b3a}}
+    .ghost-link{{display:block;text-align:center;padding:14px 12px;border:3px solid #314046;background:#fff7ec;color:#314046;font-weight:900;text-decoration:none;box-shadow:4px 4px 0 #d5cab3}}
+    .error{{padding:10px 12px;border:2px solid #b64f45;background:#ffe6de;color:#8f2e25;font-size:13px;font-weight:900}}
+    .success{{padding:10px 12px;border:2px solid #3f8d58;background:#e7ffe9;color:#1d6b37;font-size:13px;font-weight:900}}
+    .footer{{display:flex;justify-content:space-between;align-items:center;gap:10px;color:#6a777a;font-size:12px}}
+    .footer b{{color:#334148}}
+    @media (max-width:520px){{body{{padding:16px}}h1{{font-size:21px}}input,button{{font-size:16px}}}}
+  </style>
+</head>
+<body>
+  <div class="skyline"></div>
+  <section class="card">
+    <div class="head"><div class="badge">PIXEL ACCESS TERMINAL</div><h1><span class="brand">HERMES</span> PIXEL WORKS</h1><p>注册后会自动创建独立账号、独立聊天记录、独立任务板和独立公司。</p></div>
+    {error_html}
+    {success_html}
+    <form method="post" action="/register">
+      <div class="pixel-strip"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <h2>注册</h2>
+      <input type="hidden" name="next" value="{next_path}">
+      <label>用户名<input name="username" autocomplete="username" value="{register_username}" placeholder="3-24 位字母/数字/下划线"></label>
+      <label>密码<input name="password" type="password" autocomplete="new-password" placeholder="至少 6 位"></label>
+      <label>确认密码<input name="confirm_password" type="password" autocomplete="new-password"></label>
+      <button type="submit">注册新公司</button>
+      <div class="footer"><span>注册完成后会直接登录。</span><b>SELF REGISTER</b></div>
+      <a class="ghost-link" href="/login?next={next_path}">返回登录</a>
     </form>
   </section>
 </body>
@@ -1624,8 +1894,34 @@ def board_usable(slug):
         return False
 
 
+def ensure_board_exists(slug, name="", description=""):
+    slug = str(slug or "").strip()
+    if not slug:
+        return ""
+    if board_usable(slug):
+        return slug
+    args = ["kanban", "boards", "create", slug, "--default-workdir", str(ROOT)]
+    if name:
+        args.extend(["--name", name])
+    if description:
+        args.extend(["--description", description])
+    try:
+        run_hermes(*args)
+    except Exception:
+        if not board_usable(slug):
+            raise
+    return slug
+
+
 def current_board_slug():
-    preferred = str(FAST_BOARD_SLUG or "").strip()
+    user, config = current_user_config()
+    preferred = str(config.get("board") or FAST_BOARD_SLUG or "").strip()
+    if preferred:
+        ensure_board_exists(
+            preferred,
+            name=str(config.get("studio_name") or preferred),
+            description=f"{user} 的独立像素公司看板",
+        )
     if preferred and board_usable(preferred):
         return preferred
     boards = json_command("kanban", "boards", "list", "--json") or []
@@ -1802,6 +2098,7 @@ def mentioned_profiles(text):
         "planner": ("@小韩", "小韩", "策划主编"),
         "researcher": ("@小研", "小研", "研究员"),
         "writer": ("@小文", "小文", "文案"),
+        "linxiaoyan": ("@小岩", "小岩", "品牌内容", "林晓岩"),
     }
     for profile, names in aliases.items():
         if any(name in text for name in names):
@@ -1813,15 +2110,17 @@ def choose_speakers(text, exclude=(), limit=2):
     direct = mentioned_profiles(text)
     lower = text.lower()
     if any(word in lower for word in ("bug", "代码", "实现", "报错", "文件", "测试")):
-        order = ["default", "researcher", "planner", "writer"]
+        order = ["default", "researcher", "planner", "writer", "linxiaoyan"]
     elif any(word in text for word in ("剧情", "角色", "世界观", "文案", "画面", "美术")):
-        order = ["writer", "planner", "researcher", "default"]
+        order = ["writer", "linxiaoyan", "planner", "researcher", "default"]
+    elif any(word in text for word in ("品牌", "包装", "宣传", "海报", "语气", "口径", "表达")):
+        order = ["linxiaoyan", "writer", "planner", "researcher", "default"]
     elif any(word in text for word in ("玩法", "好玩", "机制", "数据", "参考", "为什么")):
-        order = ["researcher", "planner", "default", "writer"]
+        order = ["researcher", "planner", "default", "writer", "linxiaoyan"]
     elif any(word in text for word in ("安排", "决定", "方向", "优先级", "计划")):
-        order = ["planner", "default", "researcher", "writer"]
+        order = ["planner", "default", "researcher", "writer", "linxiaoyan"]
     else:
-        order = ["writer", "researcher", "default", "planner"]
+        order = ["writer", "linxiaoyan", "researcher", "default", "planner"]
     result = []
     for profile in direct + order:
         if profile not in exclude and profile not in result:
@@ -1929,9 +2228,9 @@ get_task_reply = _cached_task_reply
 def fast_state():
     world = get_world_state()
     company_state = load_company_state()
-    board_slug = FAST_BOARD_SLUG
+    board_slug = current_board_slug()
     board_db = hermes_board_dir(board_slug) / "kanban.db"
-    active = {"slug": board_slug, "name": "Relicbound ARPG"}
+    active = {"slug": board_slug, "name": company_state.get("studio_name", board_slug)}
     tasks = []
     if board_db.exists():
         con = sqlite3.connect(str(board_db))
@@ -2298,7 +2597,7 @@ def group_task_body(group_id, round_no, profile, owner_message, transcript, comp
 
 群聊规则：
 - 只说你自己会说的话，不替其他人发言。
-- 可使用 @阿默、@小韩、@小研、@小文，允许接梗、反驳、追问、阴阳怪气和轻微吐槽老板。
+- 可使用 @阿默、@小韩、@小研、@小文、@小岩，允许接梗、反驳、追问、阴阳怪气和轻微吐槽老板。
 - 这是即时聊天，不是工作汇报。可以半句、插话、反问、接上文、吐槽，像同事，不像客服。
 - 把群聊当成真实公司协作：遇到问题先互相讨论、互相补位，不要默认只对老板说话。
 - 小研默认负责查资料、拆参考、核实风险；其他人遇到拿不准的点，可以直接 @小研 求证。
@@ -2307,7 +2606,7 @@ def group_task_body(group_id, round_no, profile, owner_message, transcript, comp
 - 禁止标题、列表、工作汇报格式、英文思考过程和“已完成/下一步”套话。
 - 禁止出现这些字样：任务完成、群聊回复完成、以自然口语化方式、保持沉默是合理的、作为某某补充说明。
 - 不知道就问，不确定就明确说不确定；不得虚构文件、测试、进度或联网结果。
-- 如果老板是在安排真实项目改动，必须把它当成公司任务：小韩拆解，阿默落地文件，小研检查风险，小文检查体验。不要只口嗨。
+- 如果老板是在安排真实项目改动，必须把它当成公司任务：小韩拆解，阿默落地文件，小研检查风险，小文检查体验，小岩检查对外表达、语气和品牌观感。不要只口嗨。
 - 如果这是明确项目指令，不要说“今晚做”“明天交”“我先看看”“回头处理”这类拖延句；直接体现正在执行，或明确说卡在哪个必须拍板的点。
 - 普通闲聊不要制造任务；真实项目指令必须推动执行任务。
 - 最终完成摘要也必须只包含这些 [CHAT] 行，不能附加解释。
@@ -2616,29 +2915,33 @@ def state_signature(state):
     return json.dumps(snapshot, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
-def refresh_state_cache():
-    global STATE_CACHE, STATE_CACHE_SIGNATURE
-    state = fast_state() if FAST_STATE_ONLY else get_state()
+def state_cache_key(username=None):
+    return str(username or current_request_username() or default_auth_username()).strip()
+
+
+def refresh_state_cache(username=None):
+    cache_key = state_cache_key(username)
+    state = run_as_user(cache_key, lambda: fast_state() if FAST_STATE_ONLY else get_state())
     signature = state_signature(state)
     with STATE_COND:
-        STATE_CACHE = state
-        if signature != STATE_CACHE_SIGNATURE:
-            STATE_CACHE_SIGNATURE = signature
+        STATE_CACHE[cache_key] = state
+        if signature != STATE_CACHE_SIGNATURE.get(cache_key, ""):
+            STATE_CACHE_SIGNATURE[cache_key] = signature
             STATE_COND.notify_all()
     return state
 
 
-def cached_state():
-    global STATE_CACHE
+def cached_state(username=None):
+    cache_key = state_cache_key(username)
     with STATE_COND:
-        if STATE_CACHE is not None:
+        if cache_key in STATE_CACHE:
             if not FAST_STATE_ONLY:
                 STATE_REFRESH_WAKE.set()
-            return json.loads(json.dumps(STATE_CACHE, ensure_ascii=False))
+            return json.loads(json.dumps(STATE_CACHE[cache_key], ensure_ascii=False))
     if FAST_STATE_ONLY:
-        return refresh_state_cache()
+        return refresh_state_cache(cache_key)
     STATE_REFRESH_WAKE.set()
-    return fast_state()
+    return run_as_user(cache_key, fast_state)
 
 
 def start_state_watcher():
@@ -2646,10 +2949,15 @@ def start_state_watcher():
         while True:
             STATE_REFRESH_WAKE.wait(3)
             STATE_REFRESH_WAKE.clear()
-            try:
-                refresh_state_cache()
-            except Exception:
-                pass
+            usernames = set(configured_auth_users())
+            usernames.update(STATE_CACHE.keys())
+            if not usernames:
+                usernames.add(default_auth_username())
+            for username in usernames:
+                try:
+                    refresh_state_cache(username)
+                except Exception:
+                    pass
     threading.Thread(target=worker, daemon=True).start()
 
 
@@ -2704,7 +3012,13 @@ class Handler(SimpleHTTPRequestHandler):
         return any(hmac.compare_digest(sent, key) for key in valid_keys)
 
     def web_authorized(self):
+        return bool(self.web_username())
+
+    def web_username(self):
         return verify_auth_cookie(self.headers.get("Cookie", ""))
+
+    def request_username(self):
+        return self.web_username() or default_auth_username()
 
     def reject_unauthorized(self):
         path = urlparse(self.path).path
@@ -2725,287 +3039,356 @@ class Handler(SimpleHTTPRequestHandler):
             return False
 
     def do_GET(self):
-        path = urlparse(self.path).path
-        if path == "/login":
-            if self.web_authorized():
-                next_target = safe_next_path(parse_qs(urlparse(self.path).query).get("next", ["/"])[0])
-                self.send_response(302)
-                self.send_header("Location", with_cache_buster(next_target))
-                self.end_headers()
-            else:
-                next_target = safe_next_path(parse_qs(urlparse(self.path).query).get("next", ["/"])[0])
-                self.send_html(login_page(next_path=next_target))
-            return
-        api_key_ok = path.startswith("/api/") and self.api_authorized()
-        if web_auth_enabled() and not (self.web_authorized() or api_key_ok):
-            self.reject_unauthorized()
-            return
-        if path.startswith("/api/") and not self.web_authorized() and path not in ("/api/scene/load", "/api/world/objects") and not self.api_authorized():
-            self.send_json({"error": "API KEY 无效"}, 401)
-            return
-        if path == "/api/scene/load":
-            try:
-                cs = load_company_state()
-                scene = sanitize_scene_positions(cs.get("scene_positions", {}))
-                self.send_json({"ok": True, "scene": scene})
-            except Exception as exc:
-                self.send_json({"error": str(exc)}, 500)
-            return
-        if path == "/api/world/objects":
-            try:
-                cs = load_company_state()
-                self.send_json({"ok": True, "world_objects": cs.get("world_objects") or {}})
-            except Exception as exc:
-                self.send_json({"error": str(exc)}, 500)
-            return
-        if path == "/api/state":
-            try:
-                self.send_json(cached_state())
-            except Exception as exc:
-                self.send_json({"error": str(exc)}, 500)
-            return
-        if path == "/api/events":
-            self.send_response(200)
-            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-            self.send_header("Cache-Control", "no-store")
-            self.send_header("Connection", "keep-alive")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            last_signature = None
-            try:
-                while True:
-                    with STATE_COND:
-                        if STATE_CACHE is None:
-                            STATE_COND.wait(timeout=1)
-                        elif STATE_CACHE_SIGNATURE == last_signature:
-                            STATE_COND.wait(timeout=15)
-                        state = STATE_CACHE
-                        signature = STATE_CACHE_SIGNATURE
-                    if state is not None and signature != last_signature:
-                        payload = json.dumps(state, ensure_ascii=False)
-                        self.wfile.write(f"event: state\ndata: {payload}\n\n".encode("utf-8"))
-                        self.wfile.flush()
-                        last_signature = signature
-                    else:
-                        self.wfile.write(b": keep-alive\n\n")
-                        self.wfile.flush()
-            except (BrokenPipeError, ConnectionResetError, OSError):
+        set_request_username(self.request_username())
+        try:
+            path = urlparse(self.path).path
+            if path == "/login":
+                if self.web_authorized():
+                    next_target = safe_next_path(parse_qs(urlparse(self.path).query).get("next", ["/"])[0])
+                    self.send_response(302)
+                    self.send_header("Location", with_cache_buster(next_target))
+                    self.end_headers()
+                else:
+                    next_target = safe_next_path(parse_qs(urlparse(self.path).query).get("next", ["/"])[0])
+                    self.send_html(login_page(next_path=next_target))
                 return
-        if path == "/api/universe/stats":
-            try:
-                cs = load_company_state()
-                events = cs.get("universe_events") or []
-                ideas = cs.get("universe_ideas") or []
-                tasks = cs.get("universe_tasks") or []
-                cat_counts = {}
-                for ev in events:
-                    c = ev.get("category", "unknown") if isinstance(ev, dict) else "unknown"
-                    cat_counts[c] = cat_counts.get(c, 0) + 1
-                status_counts = {}
-                for idea in ideas:
-                    s = idea.get("status", "idea") if isinstance(idea, dict) else "idea"
-                    status_counts[s] = status_counts.get(s, 0) + 1
-                task_status = {}
-                for t in tasks:
-                    s = t.get("status", "candidate") if isinstance(t, dict) else "candidate"
-                    task_status[s] = task_status.get(s, 0) + 1
-                self.send_json({
-                    "total_events": len(events),
-                    "total_ideas": len(ideas),
-                    "total_tasks": len(tasks),
-                    "categories": cat_counts,
-                    "idea_statuses": status_counts,
-                    "task_statuses": task_status,
-                    "pipeline_enabled": bool((cs.get("universe_pipeline") or {}).get("enabled", True)),
-                })
-            except Exception as exc:
-                self.send_json({"error": str(exc)}, 500)
-            return
-        super().do_GET()
+            if path == "/register":
+                if not public_registration_enabled():
+                    next_target = safe_next_path(parse_qs(urlparse(self.path).query).get("next", ["/"])[0])
+                    self.send_response(302)
+                    self.send_header("Location", f"/login?next={next_target}")
+                    self.end_headers()
+                    return
+                if self.web_authorized():
+                    next_target = safe_next_path(parse_qs(urlparse(self.path).query).get("next", ["/"])[0])
+                    self.send_response(302)
+                    self.send_header("Location", with_cache_buster(next_target))
+                    self.end_headers()
+                else:
+                    next_target = safe_next_path(parse_qs(urlparse(self.path).query).get("next", ["/"])[0])
+                    self.send_html(register_page(next_path=next_target))
+                return
+            api_key_ok = path.startswith("/api/") and self.api_authorized()
+            if web_auth_enabled() and not (self.web_authorized() or api_key_ok):
+                self.reject_unauthorized()
+                return
+            if path.startswith("/api/") and not self.web_authorized() and path not in ("/api/scene/load", "/api/world/objects") and not self.api_authorized():
+                self.send_json({"error": "API KEY 无效"}, 401)
+                return
+            if path == "/api/scene/load":
+                try:
+                    cs = load_company_state()
+                    scene = sanitize_scene_positions(cs.get("scene_positions", {}))
+                    self.send_json({"ok": True, "scene": scene})
+                except Exception as exc:
+                    self.send_json({"error": str(exc)}, 500)
+                return
+            if path == "/api/world/objects":
+                try:
+                    cs = load_company_state()
+                    self.send_json({"ok": True, "world_objects": cs.get("world_objects") or {}})
+                except Exception as exc:
+                    self.send_json({"error": str(exc)}, 500)
+                return
+            if path == "/api/state":
+                try:
+                    self.send_json(cached_state(self.request_username()))
+                except Exception as exc:
+                    self.send_json({"error": str(exc)}, 500)
+                return
+            if path == "/api/events":
+                cache_key = state_cache_key(self.request_username())
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Connection", "keep-alive")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                last_signature = None
+                try:
+                    while True:
+                        with STATE_COND:
+                            if cache_key not in STATE_CACHE:
+                                STATE_COND.wait(timeout=1)
+                            elif STATE_CACHE_SIGNATURE.get(cache_key) == last_signature:
+                                STATE_COND.wait(timeout=15)
+                            state = STATE_CACHE.get(cache_key)
+                            signature = STATE_CACHE_SIGNATURE.get(cache_key)
+                        if state is not None and signature != last_signature:
+                            payload = json.dumps(state, ensure_ascii=False)
+                            self.wfile.write(f"event: state\ndata: {payload}\n\n".encode("utf-8"))
+                            self.wfile.flush()
+                            last_signature = signature
+                        else:
+                            self.wfile.write(b": keep-alive\n\n")
+                            self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError, OSError):
+                    return
+            if path == "/api/universe/stats":
+                try:
+                    cs = load_company_state()
+                    events = cs.get("universe_events") or []
+                    ideas = cs.get("universe_ideas") or []
+                    tasks = cs.get("universe_tasks") or []
+                    cat_counts = {}
+                    for ev in events:
+                        c = ev.get("category", "unknown") if isinstance(ev, dict) else "unknown"
+                        cat_counts[c] = cat_counts.get(c, 0) + 1
+                    status_counts = {}
+                    for idea in ideas:
+                        s = idea.get("status", "idea") if isinstance(idea, dict) else "idea"
+                        status_counts[s] = status_counts.get(s, 0) + 1
+                    task_status = {}
+                    for t in tasks:
+                        s = t.get("status", "candidate") if isinstance(t, dict) else "candidate"
+                        task_status[s] = task_status.get(s, 0) + 1
+                    self.send_json({
+                        "total_events": len(events),
+                        "total_ideas": len(ideas),
+                        "total_tasks": len(tasks),
+                        "categories": cat_counts,
+                        "idea_statuses": status_counts,
+                        "task_statuses": task_status,
+                        "pipeline_enabled": bool((cs.get("universe_pipeline") or {}).get("enabled", True)),
+                    })
+                except Exception as exc:
+                    self.send_json({"error": str(exc)}, 500)
+                return
+            super().do_GET()
+        finally:
+            set_request_username("")
 
     def do_HEAD(self):
-        path = urlparse(self.path).path
-        if path == "/login":
-            if self.web_authorized():
-                self.send_response(302)
-                self.send_header("Location", with_cache_buster("/"))
-            else:
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.end_headers()
-            return
-        api_key_ok = path.startswith("/api/") and self.api_authorized()
-        if web_auth_enabled() and not (self.web_authorized() or api_key_ok):
-            self.reject_unauthorized()
-            return
-        if path.startswith("/api/") and not self.web_authorized() and path not in ("/api/scene/load", "/api/world/objects") and not self.api_authorized():
-            self.send_response(401)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.end_headers()
-            return
-        super().do_HEAD()
+        set_request_username(self.request_username())
+        try:
+            path = urlparse(self.path).path
+            if path == "/login":
+                if self.web_authorized():
+                    self.send_response(302)
+                    self.send_header("Location", with_cache_buster("/"))
+                else:
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.end_headers()
+                return
+            if path == "/register":
+                if not public_registration_enabled():
+                    self.send_html(login_page({"login": "当前生产环境已关闭公开注册。"}, "/"), 403)
+                    return
+                if self.web_authorized():
+                    self.send_response(302)
+                    self.send_header("Location", with_cache_buster("/"))
+                else:
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.end_headers()
+                return
+            api_key_ok = path.startswith("/api/") and self.api_authorized()
+            if web_auth_enabled() and not (self.web_authorized() or api_key_ok):
+                self.reject_unauthorized()
+                return
+            if path.startswith("/api/") and not self.web_authorized() and path not in ("/api/scene/load", "/api/world/objects") and not self.api_authorized():
+                self.send_response(401)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                return
+            super().do_HEAD()
+        finally:
+            set_request_username("")
 
     def do_POST(self):
-        path = urlparse(self.path).path
-        if path == "/api/plugin/login":
-            try:
-                size = int(self.headers.get("Content-Length", 0))
-                raw = self.rfile.read(size).decode("utf-8", errors="replace")
+        set_request_username(self.request_username())
+        try:
+            path = urlparse(self.path).path
+            if path == "/api/plugin/login":
                 try:
-                    payload = json.loads(raw or "{}")
-                except Exception:
-                    payload = {k: v[0] for k, v in parse_qs(raw).items()}
-                username = str(payload.get("username", ""))
-                password = str(payload.get("password", ""))
-                if web_auth_enabled() and hmac.compare_digest(username, WEB_AUTH_USER) and hmac.compare_digest(password, WEB_AUTH_PASSWORD):
-                    self.send_json({"ok": True, "api_key": plugin_api_key(), "max_age": WEB_AUTH_MAX_AGE})
-                else:
-                    self.send_json({"error": "用户名或密码不对"}, 401)
-            except Exception as exc:
-                self.send_json({"error": str(exc)}, 500)
-            return
-        if path == "/login":
-            try:
-                size = int(self.headers.get("Content-Length", 0))
-                raw = self.rfile.read(size).decode("utf-8", errors="replace")
-                form = parse_qs(raw)
-                username = (form.get("username") or [""])[0]
-                password = (form.get("password") or [""])[0]
-                next_target = safe_next_path((form.get("next") or ["/"])[0])
-                if hmac.compare_digest(username, WEB_AUTH_USER) and hmac.compare_digest(password, WEB_AUTH_PASSWORD):
+                    size = int(self.headers.get("Content-Length", 0))
+                    raw = self.rfile.read(size).decode("utf-8", errors="replace")
+                    try:
+                        payload = json.loads(raw or "{}")
+                    except Exception:
+                        payload = {k: v[0] for k, v in parse_qs(raw).items()}
+                    username = str(payload.get("username", ""))
+                    password = str(payload.get("password", ""))
+                    user_info = configured_auth_users().get(username) or {}
+                    if web_auth_enabled() and user_info and hmac.compare_digest(password, str(user_info.get("password") or "")):
+                        self.send_json({"ok": True, "api_key": plugin_api_key(), "max_age": WEB_AUTH_MAX_AGE})
+                    else:
+                        self.send_json({"error": "用户名或密码不对"}, 401)
+                except Exception as exc:
+                    self.send_json({"error": str(exc)}, 500)
+                return
+            if path == "/login":
+                try:
+                    size = int(self.headers.get("Content-Length", 0))
+                    raw = self.rfile.read(size).decode("utf-8", errors="replace")
+                    form = parse_qs(raw)
+                    username = (form.get("username") or [""])[0]
+                    password = (form.get("password") or [""])[0]
+                    next_target = safe_next_path((form.get("next") or ["/"])[0])
+                    user_info = configured_auth_users().get(username) or {}
+                    if user_info and hmac.compare_digest(password, str(user_info.get("password") or "")):
+                        secure = "; Secure" if self.headers.get("X-Forwarded-Proto", "") == "https" else ""
+                        cookie = f"hermes_session={make_auth_cookie(username)}; Max-Age={WEB_AUTH_MAX_AGE}; Path=/; HttpOnly; SameSite=Lax{secure}"
+                        self.send_response(302)
+                        self.send_header("Set-Cookie", cookie)
+                        self.send_header("Location", with_cache_buster(next_target))
+                        self.end_headers()
+                    else:
+                        self.send_html(login_page({"login": "用户名或密码不对。"}, next_target), 401)
+                except Exception as exc:
+                    self.send_html(login_page(str(exc), next_target if "next_target" in locals() else "/"), 500)
+                return
+            if path == "/register":
+                try:
+                    size = int(self.headers.get("Content-Length", 0))
+                    raw = self.rfile.read(size).decode("utf-8", errors="replace")
+                    form = parse_qs(raw)
+                    username = (form.get("username") or [""])[0]
+                    password = (form.get("password") or [""])[0]
+                    confirm_password = (form.get("confirm_password") or [""])[0]
+                    next_target = safe_next_path((form.get("next") or ["/"])[0])
+                    if not public_registration_enabled():
+                        self.send_html(login_page({"login": "当前生产环境已关闭公开注册。"}, next_target), 403)
+                        return
+                    error = validate_registration(username, password, confirm_password)
+                    if error:
+                        self.send_html(register_page({"register": error}, next_target, register_username=username), 400)
+                        return
+                    register_auth_user(username, password)
                     secure = "; Secure" if self.headers.get("X-Forwarded-Proto", "") == "https" else ""
-                    cookie = f"hermes_session={make_auth_cookie()}; Max-Age={WEB_AUTH_MAX_AGE}; Path=/; HttpOnly; SameSite=Lax{secure}"
+                    cookie = f"hermes_session={make_auth_cookie(username)}; Max-Age={WEB_AUTH_MAX_AGE}; Path=/; HttpOnly; SameSite=Lax{secure}"
                     self.send_response(302)
                     self.send_header("Set-Cookie", cookie)
                     self.send_header("Location", with_cache_buster(next_target))
                     self.end_headers()
-                else:
-                    self.send_html(login_page("用户名或密码不对。", next_target), 401)
-            except Exception as exc:
-                self.send_html(login_page(str(exc), next_target if "next_target" in locals() else "/"), 500)
-            return
-        api_key_ok = path.startswith("/api/") and self.api_authorized()
-        if web_auth_enabled() and not (self.web_authorized() or api_key_ok):
-            self.reject_unauthorized()
-            return
-        same_origin_write = path in ("/api/scene/save", "/api/world/report") and self.same_origin_request()
-        if path.startswith("/api/") and not self.web_authorized() and not same_origin_write and not self.api_authorized():
-            self.send_json({"error": "API KEY 无效"}, 401)
-            return
-        if path == "/api/scene/save":
-            try:
-                size = int(self.headers.get("Content-Length", 0))
-                payload = json.loads(self.rfile.read(size) or b"{}")
-                scene_positions = sanitize_scene_positions(payload.get("scene", {}))
-                cs = load_company_state()
-                cs["scene_positions"] = scene_positions
-                save_company_state(cs)
-                self.send_json({"ok": True})
-            except Exception as exc:
-                self.send_json({"error": str(exc)}, 500)
-            return
-        if path == "/api/world/report":
-            try:
-                size = int(self.headers.get("Content-Length", 0))
-                payload = json.loads(self.rfile.read(size) or b"{}")
-                world_objects = sanitize_world_objects(payload.get("world_objects", {}))
-                cs = load_company_state()
-                existing = cs.get("world_objects") if isinstance(cs.get("world_objects"), dict) else {}
-                for scene, objects in world_objects.items():
-                    existing[scene] = objects
-                cs["world_objects"] = existing
-                cs["world_objects_updated_at"] = int(time.time())
-                save_company_state(cs)
-                self.send_json({"ok": True, "scenes": list(world_objects)})
-            except Exception as exc:
-                self.send_json({"error": str(exc)}, 500)
-            return
-        if path != "/api/message":
-            self.send_error(404)
-            return
-        try:
-            size = int(self.headers.get("Content-Length", 0))
-            payload = json.loads(self.rfile.read(size) or b"{}")
-            agent = payload.get("agent")
-            mode = payload.get("mode", "private")
-            message = str(payload.get("message", "")).strip()
-            attachments = normalise_attachments(payload.get("attachments"))
-            display_message = message or attachment_prompt(attachments) or "[附件]"
-            agent_message = display_message + attachment_brief(attachments) + attachments_line(attachments)
-            board = str(payload.get("board") or current_board_slug()).strip()
-            if mode not in ("private", "group") or (mode == "private" and agent not in PROFILES) or (not message and not attachments) or len(message) > 2000:
-                self.send_json({"error": "消息或收件人无效"}, 400)
+                except Exception as exc:
+                    self.send_html(register_page({"register": str(exc)}, "/", register_username=(username if 'username' in locals() else "")), 500)
                 return
-            created_at = int(time.time())
-            company_state = remember_boss_message(display_message, load_company_state())
-            deposit_chat_to_universe(display_message, company_state, "boss", "老板", create_task=True, board_slug=board)
-            if mode == "private":
-                title = f"[老板私聊] {PROFILES[agent]['name']}：{display_message[:42]}"
-                immediate_rule = (
-                    "这是明确项目指令时，回复里不要用“今晚做”“明天交”“我先看看”这类拖延句；"
-                    "虚拟员工默认立刻执行，只有真阻塞才允许提问。"
-                    if is_project_execution_request(message)
-                    else "普通私聊可以像同事一样自然接话、吐槽和追问。"
-                )
-                body = (
-                    f"老板说：{display_message}\n\n{attachments_line(attachments).strip()}\n\n你的身份是{PROFILES[agent]['name']}，人格特点：{PROFILES[agent]['personality']}。"
-                    f"{social_brief(company_state, agent)}。"
-                    f"\n{company_memory_brief(company_state)}\n{attachment_brief(attachments)}\n"
-                    "保持自己的观点和自然中文语气，像公司里一个活人，不像任务机器人。"
-                    "允许有情绪、有偏好、有不耐烦，也允许轻微吐槽老板，但别失控。"
-                    f"{immediate_rule}"
-                    "结合当前项目真实文件与任务证据回答。老板安排真实项目改动时，必须推动执行任务，不要只聊天。需要团队协作时创建明确子任务。"
-                    "完成时直接给老板可读的回复，不要只说收到，也不要虚构进展。"
-                )
-                created = [json_command(
-                    "kanban", "--board", board, "create", title, "--body", body,
-                    "--assignee", agent, "--priority", "1000", "--created-by", "老板", "--json",
-                )]
-                queue_direct_chat(board, created)
-                existing_tasks = json_command("kanban", "--board", board, "list", "--json") or []
-                if is_project_execution_request(message) and not project_task_exists(existing_tasks, message):
-                    create_project_execution_task(board, message, company_state)
-                optimistic = [{
-                    "id": (created[0] or {}).get("id") or f"local-{created_at}-{agent}",
-                    "agent": agent,
-                    "prompt": display_message,
-                    "reply": None,
-                    "status": (created[0] or {}).get("status") or "todo",
-                    "created": (created[0] or {}).get("created_at") or created_at,
-                    "mode": "private",
-                    "conversation": None,
-                    "round": None,
-                    "chat_lines": [],
-                    "name": PROFILES[agent]["name"],
-                    "attachments": attachments,
-                }]
-            else:
-                group_id = format(int(time.time() * 1000), "x")[-8:]
-                speakers = choose_group_speakers(display_message, limit=initial_group_speaker_limit(display_message))
-                created = create_group_round(board, group_id, 1, speakers, agent_message, "", company_state, origin="boss", priority="1000")
-                existing_tasks = json_command("kanban", "--board", board, "list", "--json") or []
-                if is_project_execution_request(message) and not project_task_exists(existing_tasks, message, group_id):
-                    create_project_execution_task(board, message, company_state, group_id=group_id)
-                lead = ((created[0] or {}).get("assignee") if created else None) or (speakers[0] if speakers else "planner")
-                optimistic = [{
-                    "id": (created[0] or {}).get("id") or f"local-{created_at}-{lead}",
-                    "agent": lead,
-                    "prompt": display_message,
-                    "reply": None,
-                    "status": (created[0] or {}).get("status") or "todo",
-                    "created": (created[0] or {}).get("created_at") or created_at,
-                    "mode": "group",
-                    "conversation": group_id,
-                    "round": 1,
-                    "origin": "boss",
-                    "chat_lines": [],
-                    "name": PROFILES.get(lead, PROFILES["default"])["name"],
-                    "attachments": attachments,
-                }]
-            STATE_REFRESH_WAKE.set()
-            self.send_json({"ok": True, "tasks": created, "messages": optimistic, "dispatch": "direct"})
-        except Exception as exc:
-            self.send_json({"error": str(exc)}, 500)
+            api_key_ok = path.startswith("/api/") and self.api_authorized()
+            if web_auth_enabled() and not (self.web_authorized() or api_key_ok):
+                self.reject_unauthorized()
+                return
+            same_origin_write = path in ("/api/scene/save", "/api/world/report") and self.same_origin_request()
+            if path.startswith("/api/") and not self.web_authorized() and not same_origin_write and not self.api_authorized():
+                self.send_json({"error": "API KEY 无效"}, 401)
+                return
+            if path == "/api/scene/save":
+                try:
+                    size = int(self.headers.get("Content-Length", 0))
+                    payload = json.loads(self.rfile.read(size) or b"{}")
+                    scene_positions = sanitize_scene_positions(payload.get("scene", {}))
+                    cs = load_company_state()
+                    cs["scene_positions"] = scene_positions
+                    save_company_state(cs)
+                    self.send_json({"ok": True})
+                except Exception as exc:
+                    self.send_json({"error": str(exc)}, 500)
+                return
+            if path == "/api/world/report":
+                try:
+                    size = int(self.headers.get("Content-Length", 0))
+                    payload = json.loads(self.rfile.read(size) or b"{}")
+                    world_objects = sanitize_world_objects(payload.get("world_objects", {}))
+                    cs = load_company_state()
+                    existing = cs.get("world_objects") if isinstance(cs.get("world_objects"), dict) else {}
+                    for scene, objects in world_objects.items():
+                        existing[scene] = objects
+                    cs["world_objects"] = existing
+                    cs["world_objects_updated_at"] = int(time.time())
+                    save_company_state(cs)
+                    self.send_json({"ok": True, "scenes": list(world_objects)})
+                except Exception as exc:
+                    self.send_json({"error": str(exc)}, 500)
+                return
+            if path != "/api/message":
+                self.send_error(404)
+                return
+            try:
+                size = int(self.headers.get("Content-Length", 0))
+                payload = json.loads(self.rfile.read(size) or b"{}")
+                agent = payload.get("agent")
+                mode = payload.get("mode", "private")
+                message = str(payload.get("message", "")).strip()
+                attachments = normalise_attachments(payload.get("attachments"))
+                display_message = message or attachment_prompt(attachments) or "[附件]"
+                agent_message = display_message + attachment_brief(attachments) + attachments_line(attachments)
+                board = str(payload.get("board") or current_board_slug()).strip()
+                if mode not in ("private", "group") or (mode == "private" and agent not in PROFILES) or (not message and not attachments) or len(message) > 2000:
+                    self.send_json({"error": "消息或收件人无效"}, 400)
+                    return
+                created_at = int(time.time())
+                company_state = remember_boss_message(display_message, load_company_state())
+                deposit_chat_to_universe(display_message, company_state, "boss", "老板", create_task=True, board_slug=board)
+                if mode == "private":
+                    title = f"[老板私聊] {PROFILES[agent]['name']}：{display_message[:42]}"
+                    immediate_rule = (
+                        "这是明确项目指令时，回复里不要用“今晚做”“明天交”“我先看看”这类拖延句；"
+                        "虚拟员工默认立刻执行，只有真阻塞才允许提问。"
+                        if is_project_execution_request(message)
+                        else "普通私聊可以像同事一样自然接话、吐槽和追问。"
+                    )
+                    body = (
+                        f"老板说：{display_message}\n\n{attachments_line(attachments).strip()}\n\n你的身份是{PROFILES[agent]['name']}，人格特点：{PROFILES[agent]['personality']}。"
+                        f"{social_brief(company_state, agent)}。"
+                        f"\n{company_memory_brief(company_state)}\n{attachment_brief(attachments)}\n"
+                        "保持自己的观点和自然中文语气，像公司里一个活人，不像任务机器人。"
+                        "允许有情绪、有偏好、有不耐烦，也允许轻微吐槽老板，但别失控。"
+                        f"{immediate_rule}"
+                        "结合当前项目真实文件与任务证据回答。老板安排真实项目改动时，必须推动执行任务，不要只聊天。需要团队协作时创建明确子任务。"
+                        "完成时直接给老板可读的回复，不要只说收到，也不要虚构进展。"
+                    )
+                    created = [json_command(
+                        "kanban", "--board", board, "create", title, "--body", body,
+                        "--assignee", agent, "--priority", "1000", "--created-by", "老板", "--json",
+                    )]
+                    queue_direct_chat(board, created)
+                    existing_tasks = json_command("kanban", "--board", board, "list", "--json") or []
+                    if is_project_execution_request(message) and not project_task_exists(existing_tasks, message):
+                        create_project_execution_task(board, message, company_state)
+                    optimistic = [{
+                        "id": (created[0] or {}).get("id") or f"local-{created_at}-{agent}",
+                        "agent": agent,
+                        "prompt": display_message,
+                        "reply": None,
+                        "status": (created[0] or {}).get("status") or "todo",
+                        "created": (created[0] or {}).get("created_at") or created_at,
+                        "mode": "private",
+                        "conversation": None,
+                        "round": None,
+                        "chat_lines": [],
+                        "name": PROFILES[agent]["name"],
+                        "attachments": attachments,
+                    }]
+                else:
+                    group_id = format(int(time.time() * 1000), "x")[-8:]
+                    speakers = choose_group_speakers(display_message, limit=initial_group_speaker_limit(display_message))
+                    created = create_group_round(board, group_id, 1, speakers, agent_message, "", company_state, origin="boss", priority="1000")
+                    existing_tasks = json_command("kanban", "--board", board, "list", "--json") or []
+                    if is_project_execution_request(message) and not project_task_exists(existing_tasks, message, group_id):
+                        create_project_execution_task(board, message, company_state, group_id=group_id)
+                    lead = ((created[0] or {}).get("assignee") if created else None) or (speakers[0] if speakers else "planner")
+                    optimistic = [{
+                        "id": (created[0] or {}).get("id") or f"local-{created_at}-{lead}",
+                        "agent": lead,
+                        "prompt": display_message,
+                        "reply": None,
+                        "status": (created[0] or {}).get("status") or "todo",
+                        "created": (created[0] or {}).get("created_at") or created_at,
+                        "mode": "group",
+                        "conversation": group_id,
+                        "round": 1,
+                        "origin": "boss",
+                        "chat_lines": [],
+                        "name": PROFILES.get(lead, PROFILES["default"])["name"],
+                        "attachments": attachments,
+                    }]
+                STATE_REFRESH_WAKE.set()
+                self.send_json({"ok": True, "tasks": created, "messages": optimistic, "dispatch": "direct"})
+            except Exception as exc:
+                self.send_json({"error": str(exc)}, 500)
+        finally:
+            set_request_username("")
 
 
 # ── Universe growth scheduler ────────────────────────────────────────
