@@ -52,6 +52,7 @@ AUTO_CHAT_LOCK = threading.Lock()
 DIRECT_CHAT_LOCK = threading.Lock()
 DIRECT_CHAT_ACTIVE = set()
 DIRECT_CHAT_SEMAPHORE = threading.BoundedSemaphore(1)
+GROUP_DIRECT_CHAT_LIMIT = max(1, int(os.environ.get("HERMES_GROUP_DIRECT_CHAT_LIMIT", "2")))
 STATE_COND = threading.Condition()
 # Performance caches: prevent redundant subprocess calls and log file reads
 _TASK_REPLY_CACHE = {}  # (board_slug, task_id) -> (reply, timestamp)
@@ -1633,9 +1634,9 @@ def queue_direct_chat(board_slug, tasks):
             with DIRECT_CHAT_SEMAPHORE:
                 reply = clean_cli_reply(run_hermes(
                     "-p", profile, "--accept-hooks", "chat", "-Q",
-                    "--source", "tool", "--max-turns", "6",
+                    "--source", "tool", "--max-turns", "4",
                     "-q", direct_chat_prompt(task),
-                    timeout=150,
+                    timeout=110,
                 ))
                 if not reply:
                     reply = "[CHAT] 我看到了，但这条消息刚才没有生成有效回复。"
@@ -1722,6 +1723,15 @@ def choose_group_speakers(text, exclude=(), limit=None):
     if limit is None:
         return roster
     return roster[:limit]
+
+
+def initial_group_speaker_limit(text):
+    direct = mentioned_profiles(text)
+    if len(direct) >= 2:
+        return min(len(PROFILES), max(2, len(direct)))
+    if any(word in text for word in ("紧急", "马上", "立即", "谁来", "@")):
+        return min(len(PROFILES), max(2, GROUP_DIRECT_CHAT_LIMIT))
+    return min(len(PROFILES), GROUP_DIRECT_CHAT_LIMIT)
 
 
 def extract_chat_lines(reply):
@@ -2777,7 +2787,7 @@ class Handler(SimpleHTTPRequestHandler):
                 }]
             else:
                 group_id = format(int(time.time() * 1000), "x")[-8:]
-                speakers = choose_group_speakers(display_message, limit=len(PROFILES))
+                speakers = choose_group_speakers(display_message, limit=initial_group_speaker_limit(display_message))
                 created = create_group_round(board, group_id, 1, speakers, agent_message, "", company_state, origin="boss", priority="1000")
                 existing_tasks = json_command("kanban", "--board", board, "list", "--json") or []
                 if is_project_execution_request(message) and not project_task_exists(existing_tasks, message, group_id):
