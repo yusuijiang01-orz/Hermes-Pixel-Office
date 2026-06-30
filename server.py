@@ -1636,7 +1636,7 @@ def clean_cli_reply(text):
             continue
         lines.append(line)
     reply = "\n".join(lines).strip()
-    return "" if is_error_reply(reply) else reply
+    return "" if is_error_reply(reply) or is_non_chat_reply(reply) else reply
 
 
 def direct_chat_prompt(task):
@@ -1664,11 +1664,11 @@ def queue_direct_chat(board_slug, tasks):
                     timeout=110,
                 ))
                 if not reply:
-                    reply = "[CHAT] 我看到了，但这条消息刚才没有生成有效回复。"
+                    reply = "[CHAT] 我看到了，这条刚才没顺利回上来。你再戳我一句，我立刻接上。"
                 run_hermes("kanban", "--board", board_slug, "complete", task_id, "--result", reply, "--summary", reply, timeout=30)
         except Exception as exc:
             log_runtime_error(f"direct_chat {task_id} {profile}", exc)
-            fallback = "[CHAT] 我这边执行器断了一下，先别把这条当正式结论，我会等下一轮继续接。"
+            fallback = "[CHAT] 我这条刚才没顺利发出来。你再戳我一下，我马上接上。"
             try:
                 run_hermes("kanban", "--board", board_slug, "complete", task_id, "--result", fallback, "--summary", fallback, timeout=30)
             except Exception:
@@ -1903,7 +1903,16 @@ def fast_state():
         conversation = group_match.group(2) if group_match else None
         round_no = int(group_match.group(3) or 1) if group_match else None
         prompt = extract_group_topic(body) if mode == "group" else body.split("老板说：", 1)[-1].split("\n\n", 1)[0].strip()
-        reply = sanitize_chat_reply(task.get("result"), mode)
+        reply = get_task_reply(board_slug, task)
+        if not reply:
+            reply = recover_log_reply(board_slug, task["id"])
+            if reply and task.get("status") != "done":
+                try:
+                    run_hermes("kanban", "--board", board_slug, "complete", task["id"], "--result", reply, "--summary", reply)
+                    task["status"] = "done"
+                except Exception:
+                    pass
+        reply = sanitize_chat_reply(reply, mode)
         chat_lines = extract_chat_lines(reply) if mode == "group" else []
         messages.append({
             "id": task["id"], "agent": task.get("assignee", "default"), "prompt": prompt,
@@ -1917,6 +1926,12 @@ def fast_state():
         })
         if mode == "group" and chat_lines:
             team_feed.append({"agent": task.get("assignee", "default"), "text": chat_lines[0], "created": task.get("completed_at") or task.get("created_at")})
+    delivery_notices = project_delivery_messages(board_slug, tasks)
+    messages.extend(delivery_notices)
+    for notice in delivery_notices[-5:]:
+        text = "老板，项目已交付，私聊里有验收说明。" if notice.get("notice") == "delivery" else "老板，这个任务卡住了，需要你拍板。"
+        team_feed.append({"agent": notice.get("agent", "default"), "text": text, "created": notice.get("created")})
+    project_tasks = visible_project_task_items(tasks)
     return {
         "board": active, "agents": agents, "messages": sorted(messages, key=lambda item: item.get("created") or 0),
         "team_feed": team_feed, "world": world, "time": int(time.time()),
@@ -1938,7 +1953,7 @@ def fast_state():
             "universe_tasks": (company_state.get("universe_tasks") or [])[-12:],
             "team_decisions": visible_team_decisions(company_state.get("team_decisions") or []),
             "stale_project_reviews": visible_stale_project_reviews(company_state.get("stale_project_reviews") or [], tasks),
-            "project_tasks": [],
+            "project_tasks": project_tasks,
         },
     }
 
