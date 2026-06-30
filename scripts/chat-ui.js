@@ -558,6 +558,7 @@ function openMobileChatPrivate(id, options = {}) {
   selected = id;
   setChatMode("private");
   select(id, false);
+  scrollState.mobile.stick = true;
   renderMobileShell();
   if (options.prefill) requestAnimationFrame(() => focusChatInput("mobile", options.prefill));
 }
@@ -569,6 +570,7 @@ function openMobileChatGroup(conversation = "team") {
   mobileState.taskDetailOpen = false;
   mobileState.taskDetailId = null;
   scrollState.mobile.key = "";
+  scrollState.mobile.stick = true;
   closeMentionMenu("mobile");
   setChatMode("group");
   renderMobileShell();
@@ -581,12 +583,13 @@ function captureScroll(box, keyName, threadKey) {
 }
 function restoreScroll(box, keyName, threadKey, forceBottom = false) {
   const info = scrollState[keyName];
-  if (forceBottom || info.key !== threadKey) box.scrollTop = box.scrollHeight;
+  const switchedThread = info.key !== threadKey;
+  if (forceBottom || switchedThread) box.scrollTop = box.scrollHeight;
   else if (info.stick) box.scrollTop = box.scrollHeight;
   else box.scrollTop = Math.min(info.top, Math.max(0, box.scrollHeight - box.clientHeight));
   info.key = threadKey;
   info.top = box.scrollTop;
-  info.stick = box.scrollHeight - box.clientHeight - box.scrollTop < 36;
+  info.stick = switchedThread || box.scrollHeight - box.clientHeight - box.scrollTop < 36;
 }
 function mergePendingMessages(realMessages) {
   const real = (realMessages || []).slice();
