@@ -1,4 +1,7 @@
 var _a;
+const AUTO_RETRY_ATTEMPTS = 3;
+const AUTO_RETRY_DELAY_MS = 5e3;
+const pendingRetryTimers = /* @__PURE__ */ new Map();
 function applyServerState(data, source = "poll") {
   var _a2, _b, _c;
   if (data.error) throw Error(data.error);
@@ -74,6 +77,95 @@ function safeRenderChatViews(mode) {
     scheduleRefresh(120);
   }
 }
+function clearPendingRetryTimer(messageId) {
+  const timer = pendingRetryTimers.get(messageId);
+  if (timer) clearTimeout(timer);
+  pendingRetryTimers.delete(messageId);
+}
+function updatePendingMessage(messageId, updater) {
+  let updated = null;
+  pendingMessages = pendingMessages.map((item) => {
+    if (item.id !== messageId) return item;
+    updated = typeof updater === "function" ? updater(item) : { ...item, ...updater };
+    return updated;
+  });
+  return updated;
+}
+async function attemptPendingSend(messageId, manual = false) {
+  var _a2;
+  const current = pendingMessages.find((item) => item.id === messageId);
+  if (!current || !current._sendPayload) return;
+  clearPendingRetryTimer(messageId);
+  const lockKey = current._lockKey || `${current._sendPayload.inputSelector || "chat"}:${current.mode}:${current.agent || "group"}`;
+  if (sendLocks.has(lockKey)) return;
+  sendLocks.add(lockKey);
+  const active = updatePendingMessage(messageId, (item) => ({
+    ...item,
+    status: "todo",
+    reply: null,
+    _sendState: "sending",
+    _manualRetryAt: manual ? Date.now() : item._manualRetryAt
+  }));
+  safeRenderChatViews((active == null ? void 0 : active.mode) || current.mode);
+  try {
+    const payload = active == null ? void 0 : active._sendPayload;
+    const r = await fetch(apiUrl("/api/message"), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify({ mode: payload.mode, agent: payload.agent, message: payload.message, attachments: payload.attachments, board: payload.board }) });
+    const data = await r.json();
+    if (isAuthError(r, data)) {
+      redirectToLogin();
+      return;
+    }
+    if (!r.ok) throw Error(data.error);
+    clearPendingRetryTimer(messageId);
+    pendingMessages = pendingMessages.filter((item) => item.id !== messageId);
+    if (((_a2 = active == null ? void 0 : active._sendPayload) == null ? void 0 : _a2.mode) === "group") mobileState.conversation = "team";
+    rememberPending(data.messages || []);
+    beginFastRefresh();
+    scheduleRefresh(80);
+  } catch (err) {
+    const latest = pendingMessages.find((item) => item.id === messageId) || current;
+    const retriesUsed = latest._retryAttempts || 0;
+    if (retriesUsed < AUTO_RETRY_ATTEMPTS) {
+      const nextRetry = retriesUsed + 1;
+      updatePendingMessage(messageId, (item) => ({
+        ...item,
+        status: "retrying",
+        reply: `消息发送失败，${AUTO_RETRY_DELAY_MS / 1e3}秒后自动重试（${nextRetry}/${AUTO_RETRY_ATTEMPTS}）`,
+        _sendState: "retry_wait",
+        _retryAttempts: nextRetry,
+        _lastError: err.message
+      }));
+      pendingRetryTimers.set(messageId, setTimeout(() => {
+        attemptPendingSend(messageId, false);
+      }, AUTO_RETRY_DELAY_MS));
+    } else {
+      updatePendingMessage(messageId, (item) => ({
+        ...item,
+        status: "blocked",
+        reply: "消息未送达：" + err.message,
+        _sendState: "failed",
+        _lastError: err.message
+      }));
+    }
+    safeRenderChatViews(latest.mode);
+  } finally {
+    sendLocks.delete(lockKey);
+  }
+}
+function retryPendingMessage(messageId) {
+  const current = pendingMessages.find((item) => item.id === messageId);
+  if (!current) return;
+  updatePendingMessage(messageId, (item) => ({
+    ...item,
+    status: "todo",
+    reply: null,
+    _sendState: "sending",
+    _retryAttempts: 0
+  }));
+  safeRenderChatViews(current.mode);
+  attemptPendingSend(messageId, true);
+}
+window.retryPendingMessage = retryPendingMessage;
 function connectRealtime() {
   if (!window.EventSource || realtimeSource) return;
   realtimeSource = new EventSource(apiUrl("/api/events"));
@@ -126,12 +218,11 @@ async function refresh() {
 connectRealtime();
 refresh();
 async function sendChatMessage(inputSelector, mode, agentId) {
-  var _a2, _b, _c, _d;
+  var _b, _c, _d;
   const input = document.querySelector(inputSelector), kind = draftKindFromInput(inputSelector), message = input.value.trim(), attachments = draftFor(kind).slice();
   if (!message && !attachments.length || mode === "private" && !agentId) return;
   const lockKey = `${inputSelector}:${mode}:${agentId || "group"}`;
   if (sendLocks.has(lockKey)) return;
-  sendLocks.add(lockKey);
   closeMentionMenu(inputSelector === "#mobileChatInput" ? "mobile" : "desktop");
   closeChatPanels();
   input.value = "";
@@ -153,9 +244,13 @@ async function sendChatMessage(inputSelector, mode, agentId) {
     round: 1,
     origin: "boss",
     chat_lines: [],
-    name: ((_a2 = agents.planner) == null ? void 0 : _a2.name) || "策划主编 小韩",
+    name: (agents.planner == null ? void 0 : agents.planner.name) || "策划主编 小韩",
     attachments,
-    _local: true
+    _local: true,
+    _retryAttempts: 0,
+    _sendState: "sending",
+    _lockKey: lockKey,
+    _sendPayload: { mode, agent: agentId, message, attachments, board: ((_d = state == null ? void 0 : state.board) == null ? void 0 : _d.slug) || "default", inputSelector }
   } : {
     id: tempId,
     agent: agentId,
@@ -169,33 +264,20 @@ async function sendChatMessage(inputSelector, mode, agentId) {
     chat_lines: [],
     name: ((_b = agents[agentId]) == null ? void 0 : _b.name) || ((_c = fallbackMentions.find((a) => a.id === agentId)) == null ? void 0 : _c.name) || "员工",
     attachments,
-    _local: true
+    _local: true,
+    _retryAttempts: 0,
+    _sendState: "sending",
+    _lockKey: lockKey,
+    _sendPayload: { mode, agent: agentId, message, attachments, board: ((_d = state == null ? void 0 : state.board) == null ? void 0 : _d.slug) || "default", inputSelector }
   };
   pendingMessages.push(tempMessage);
   safeRenderChatViews(mode);
   beginFastRefresh();
   scheduleRefresh(80);
-  try {
-    const r = await fetch(apiUrl("/api/message"), { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify({ mode, agent: agentId, message, attachments, board: ((_d = state == null ? void 0 : state.board) == null ? void 0 : _d.slug) || "default" }) }), data = await r.json();
-    if (isAuthError(r, data)) {
-      redirectToLogin();
-      return;
-    }
-    if (!r.ok) throw Error(data.error);
-    pendingMessages = pendingMessages.filter((item) => item.id !== tempId);
-    if (mode === "group") mobileState.conversation = "team";
-    rememberPending(data.messages || []);
-    beginFastRefresh();
-    scheduleRefresh(80);
-  } catch (err) {
-    pendingMessages = pendingMessages.map((item) => item.id === tempId ? { ...item, status: "blocked", reply: "消息未送达：" + err.message } : item);
-    safeRenderChatViews(mode);
-    alert("消息未送达：" + err.message);
-  } finally {
-    sendLocks.delete(lockKey);
+  attemptPendingSend(tempId, false).finally(() => {
     input.disabled = false;
     input.focus();
-  }
+  });
 }
 document.querySelector("#form").addEventListener("submit", async (e) => {
   e.preventDefault();

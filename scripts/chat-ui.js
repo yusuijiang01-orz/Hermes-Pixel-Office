@@ -228,8 +228,8 @@ function renderMobileChatScreen() {
       }
       const reply = cleanSpeechText(m.reply || "");
       wrapper.innerHTML = [
-        m.prompt ? `<div class="bubble mine">${messageTextHtml(m.prompt, m.attachments)}<span class="bubble-time">${msgTime(m.created)}</span></div>` : "",
-        `<div class="bubble theirs ${reply ? "" : "pending"}"><span class="bubble-name">${esc(agent.short || agent.name || "员工")}<span class="bubble-time">${msgTime(m.completed || m.created)}</span></span>${esc(reply ? compactText(reply, 400) : m.status === "blocked" ? "遇到问题，正在整理需要你决定的事项..." : "正在处理并组织回复...")}</div>`
+        m.prompt ? `<div class="bubble mine">${messageTextHtml(m.prompt, m.attachments)}${renderOwnBubbleMeta(m)}</div>` : "",
+        `<div class="bubble theirs ${reply ? "" : "pending"}"><span class="bubble-name">${esc(agent.short || agent.name || "员工")}<span class="bubble-time">${msgTime(m.completed || m.created)}</span></span>${reply ? messageTextHtml(compactText(reply, 400), m.attachments) : m.status === "blocked" ? "遇到问题，正在整理需要你决定的事项..." : "正在处理并组织回复..."}</div>`
       ].join("");
     });
     restoreScroll(body, "mobile", threadKey2);
@@ -272,11 +272,11 @@ function renderMobileChatScreen() {
     msgs.sort((a, b) => (a.created || 0) - (b.created || 0) || (a.round || 1) - (b.round || 1));
     const boss = msgs.find((m) => m.origin === "boss" && m.prompt) || msgs.find((m) => m.prompt);
     const html = [];
-    if (boss) html.push(`<div class="msg-wrapper" data-msg-id="boss-${esc(key)}"><div class="bubble mine">${messageTextHtml(boss.prompt, boss.attachments)}<span class="bubble-time">${msgTime(boss.created)}</span></div></div>`);
+    if (boss) html.push(`<div class="msg-wrapper" data-msg-id="boss-${esc(key)}"><div class="bubble mine">${messageTextHtml(boss.prompt, boss.attachments)}${renderOwnBubbleMeta(boss)}</div></div>`);
       msgs.forEach((m) => {
         const speaker = (m.name || "员工").split(" ").slice(-1)[0], cl = validChatLines(m);
         if (cl.length) {
-          html.push(`<div class="msg-wrapper" data-msg-id="${esc(m.id)}">${cl.map((line) => `<div class="bubble theirs" data-reply="${esc(speaker)}"><span class="bubble-name">${esc(speaker)}<span class="bubble-time">${msgTime(m.completed || m.created)}</span></span>${esc(line)}</div>`).join("")}</div>`);
+          html.push(`<div class="msg-wrapper" data-msg-id="${esc(m.id)}">${cl.map((line) => `<div class="bubble theirs" data-reply="${esc(speaker)}"><span class="bubble-name">${esc(speaker)}<span class="bubble-time">${msgTime(m.completed || m.created)}</span></span>${messageTextHtml(line, m.attachments)}</div>`).join("")}</div>`);
         }
       });
     container.innerHTML = html.join("");
@@ -543,6 +543,17 @@ function renderAttachments(items = []) {
 function messageTextHtml(text, attachments = []) {
   return `${renderStickerText(text, attachments)}${renderAttachments(attachments)}`;
 }
+function renderOwnBubbleMeta(message) {
+  const time = `<span class="bubble-time">${msgTime(message.created)}</span>`;
+  if (!message || !message._local) return time;
+  if (message._sendState === "failed") {
+    return `<button type="button" class="bubble-retry bubble-retry-float" data-retry-message="${esc(message.id)}" title="重新发送">!</button><span class="bubble-meta">${time}</span>`;
+  }
+  if (message._sendState === "retry_wait") {
+    return `<span class="bubble-meta"><span class="bubble-send-state retrying">重试中</span>${time}</span>`;
+  }
+  return `<span class="bubble-meta"><span class="bubble-send-state">${message._retryAttempts ? `发送中 ${message._retryAttempts}/3` : "发送中"}</span>${time}</span>`;
+}
 function attachmentPrompt(items = []) {
   const stickers = items.filter((item) => item.kind === "sticker").map((item) => item.name || "表情包");
   if (stickers.length) return stickers.slice(0, 4).map((name) => `[${name}]`).join("");
@@ -585,8 +596,8 @@ function renderChat() {
       }
       const reply = cleanSpeechText(m.reply || "");
       wrapper.innerHTML = [
-        m.prompt ? `<div class="bubble mine">${messageTextHtml(m.prompt, m.attachments)}<span class="bubble-time">${msgTime(m.created)}</span></div>` : "",
-        `<div class="bubble theirs ${reply ? "" : "pending"}"><span class="bubble-name">${esc(m.name || "员工")}<span class="bubble-time">${msgTime(m.completed || m.created)}</span></span>${reply ? esc(reply) : m.status === "blocked" ? "遇到问题，正在整理需要你决定的事项..." : "正在处理并组织回复..."}</div>`
+        m.prompt ? `<div class="bubble mine">${messageTextHtml(m.prompt, m.attachments)}${renderOwnBubbleMeta(m)}</div>` : "",
+        `<div class="bubble theirs ${reply ? "" : "pending"}"><span class="bubble-name">${esc(m.name || "员工")}<span class="bubble-time">${msgTime(m.completed || m.created)}</span></span>${reply ? messageTextHtml(reply, m.attachments) : m.status === "blocked" ? "遇到问题，正在整理需要你决定的事项..." : "正在处理并组织回复..."}</div>`
       ].join("");
     });
     restoreScroll(box, "desktop", threadKey);
@@ -629,11 +640,11 @@ function renderChat() {
       msgs.sort((a, b) => (a.created || 0) - (b.created || 0) || (a.round || 1) - (b.round || 1));
       const boss = msgs.find((m) => m.origin === "boss" && m.prompt) || msgs.find((m) => m.prompt);
       const html = [];
-      if (boss) html.push(`<div class="msg-wrapper" data-msg-id="boss-${esc(conv)}"><div class="bubble mine">${messageTextHtml(boss.prompt, boss.attachments)}<span class="bubble-time">${msgTime(boss.created)}</span></div></div>`);
+      if (boss) html.push(`<div class="msg-wrapper" data-msg-id="boss-${esc(conv)}"><div class="bubble mine">${messageTextHtml(boss.prompt, boss.attachments)}${renderOwnBubbleMeta(boss)}</div></div>`);
       msgs.forEach((m) => {
         const short = (m.name || "员工").split(" ").slice(-1)[0], cl = validChatLines(m);
         if (cl.length) {
-          html.push(`<div class="msg-wrapper" data-msg-id="${esc(m.id)}">${cl.map((line) => `<div class="bubble theirs" data-reply="${esc(short)}"><span class="bubble-name">${esc(short)}<span class="bubble-time">${msgTime(m.completed || m.created)}</span></span>${esc(line)}</div>`).join("")}</div>`);
+          html.push(`<div class="msg-wrapper" data-msg-id="${esc(m.id)}">${cl.map((line) => `<div class="bubble theirs" data-reply="${esc(short)}"><span class="bubble-name">${esc(short)}<span class="bubble-time">${msgTime(m.completed || m.created)}</span></span>${messageTextHtml(line, m.attachments)}</div>`).join("")}</div>`);
         }
       });
       container.innerHTML = html.join("");
@@ -755,6 +766,11 @@ document.querySelector("#stickerPicker").addEventListener("change", async (e) =>
   renderChatPanel(pickerTargetKind, "stickers");
 });
 document.querySelector("#chat").addEventListener("click", (e) => {
+  const retry = e.target.closest("[data-retry-message]");
+  if (retry) {
+    retryPendingMessage(retry.dataset.retryMessage);
+    return;
+  }
   if (chatMode !== "group") return;
   const bubble = e.target.closest("[data-reply]");
   if (!bubble) return;
@@ -762,6 +778,11 @@ document.querySelector("#chat").addEventListener("click", (e) => {
 });
 document.querySelector("#mobileChatBody").addEventListener("scroll", () => captureScroll(document.querySelector("#mobileChatBody"), "mobile", scrollState.mobile.key || `${mobileState.chatMode}:${mobileState.agent || mobileState.conversation || "team"}`));
 document.querySelector("#mobileChatBody").addEventListener("click", (e) => {
+  const retry = e.target.closest("[data-retry-message]");
+  if (retry) {
+    retryPendingMessage(retry.dataset.retryMessage);
+    return;
+  }
   if (mobileState.chatMode !== "group") return;
   const bubble = e.target.closest("[data-reply]");
   if (!bubble) return;
