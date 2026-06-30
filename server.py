@@ -1498,7 +1498,21 @@ def json_command(*args):
     return json.loads(output) if output else None
 
 
+def board_usable(slug):
+    slug = str(slug or "").strip()
+    if not slug:
+        return False
+    try:
+        json_command("kanban", "--board", slug, "list", "--json")
+        return True
+    except Exception:
+        return False
+
+
 def current_board_slug():
+    preferred = str(FAST_BOARD_SLUG or "").strip()
+    if preferred and board_usable(preferred):
+        return preferred
     boards = json_command("kanban", "boards", "list", "--json") or []
     active = next((b for b in boards if b.get("is_current")), None)
     if not active:
@@ -2209,6 +2223,14 @@ def get_state():
     board_slug = current_board_slug()
     boards = json_command("kanban", "boards", "list", "--json") or []
     active = next((b for b in boards if b.get("slug") == board_slug), None)
+    if not active:
+        active = {
+            "slug": board_slug,
+            "name": "Relicbound ARPG" if board_slug == FAST_BOARD_SLUG else board_slug,
+            "description": "",
+            "archived": False,
+            "is_current": True,
+        }
     tasks = json_command("kanban", "--board", board_slug, "list", "--json") or []
     changed = maybe_spawn_internal_chat(board_slug, tasks, company_state, world)
     changed = advance_group_conversations(board_slug, tasks, company_state) or changed
