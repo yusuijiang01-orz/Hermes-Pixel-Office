@@ -1428,7 +1428,7 @@ def embedded_chat_lines(text):
 
 
 def sanitize_chat_reply(reply, mode="private"):
-    raw = str(reply or "").strip()
+    raw = ANSI_RE.sub("", str(reply or "")).strip()
     if not raw:
         return None
     if mode == "group":
@@ -1440,12 +1440,12 @@ def sanitize_chat_reply(reply, mode="private"):
     if mode == "private":
         if is_error_reply(raw):
             return None
-        raw = re.sub(
-            r"^\s*⚠️?\s*Reached maximum iterations\s*\([^)]+\)\.\s*Requesting summary\.\.\.\s*",
-            "",
-            raw,
-            flags=re.I,
-        ).strip()
+        raw = re.sub(r"^\s*⚠️?\s*Reached maximum iterations\s*\([^)]+\)\.\s*Requesting summary\.\.\.\s*", "", raw, flags=re.I).strip()
+        raw = re.sub(r"(?im)^\s*⚠️?\s*Reached maximum iterations[^\n]*$", "", raw).strip()
+        if any(marker in raw for marker in ("review diff", "diff --git", "Complete patch", "老板可以打开链接", "Chrome DevTools")):
+            conversational = re.search(r"(老板[，：,: ]|老板好|哦抱歉|收到|我看到了|我这条刚才|你好)", raw)
+            if conversational and conversational.start() > 0:
+                raw = raw[conversational.start():].strip()
         chat_lines = embedded_chat_lines(raw)
         if chat_lines:
             return "\n".join(chat_lines)
@@ -1457,6 +1457,12 @@ def sanitize_chat_reply(reply, mode="private"):
                     cleaned_lines.append("")
                 continue
             if clean.startswith("session_id:"):
+                continue
+            if re.search(r"^(┊\s*review diff|review diff|diff --git\b|@@\s|---\s|\+\+\+\s|```|a/[A-Za-z]:\\|b/[A-Za-z]:\\)", clean, flags=re.I):
+                continue
+            if re.search(r"^[+].{0,4}(const|let|var|function|//)", clean):
+                continue
+            if "Iteration budget exhausted" in clean or "DevTools" in clean:
                 continue
             if is_non_chat_reply(clean):
                 continue
@@ -2015,7 +2021,16 @@ def summarize_project_collaboration(board_slug, task, tasks):
     seen = set()
 
     def add_snippet(profile, text):
-        clean = re.sub(r"\s+", " ", str(text or "")).strip()
+        raw_text = str(text or "")
+        sanitized = sanitize_chat_reply(raw_text, "private")
+        if sanitized is None and (
+            is_non_chat_reply(raw_text)
+            or is_error_reply(raw_text)
+            or any(marker in raw_text for marker in ("Iteration budget exhausted", "review diff", "Reached maximum iterations", "DevTools"))
+        ):
+            return
+        clean = sanitized if sanitized is not None else re.sub(r"\s+", " ", raw_text).strip()
+        clean = re.sub(r"\s+", " ", clean).strip()
         if not clean:
             return
         clean = re.sub(r"^\[[^\]]+\]\s*", "", clean).strip()
@@ -2080,11 +2095,9 @@ def project_delivery_messages(board_slug, tasks):
         assignee = task.get("assignee") or "default"
         title = strip_project_title(task.get("title", ""))
         body = str(task.get("body") or "")
-        result = (
-            task.get("result")
-            or task.get("latest_summary")
-            or ("遇到阻塞，需要老板决策。" if status == "blocked" else "任务已完成，等待老板验收。")
-        )
+        result = sanitize_chat_reply(task.get("result") or task.get("latest_summary"), "private")
+        if not result:
+            result = "遇到阻塞，需要老板决策。" if status == "blocked" else "任务已完成，等待老板验收。"
         collaboration = summarize_project_collaboration(board_slug, task, tasks)
         collaboration_text = ""
         if collaboration:
