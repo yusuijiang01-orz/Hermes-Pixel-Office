@@ -2053,39 +2053,46 @@ def project_delivery_messages(board_slug, tasks):
     return notices
 
 
-def visible_project_task_items(tasks, limit=8):
-    items = [
-        {
+def visible_project_task_items(tasks, limit=24):
+    active_statuses = {"todo", "ready", "running", "blocked"}
+    status_rank = {"blocked": 0, "running": 1, "ready": 2, "todo": 3}
+    items = []
+    for task in tasks:
+        title = str(task.get("title", "") or "")
+        if not (
+            title.startswith("[项目执行]")
+            or title.startswith("[协作子任务]")
+        ):
+            continue
+        if task.get("status") not in active_statuses:
+            continue
+        if title.startswith("[项目执行]") and not is_meaningful_project_task(task):
+            continue
+        assignee = task.get("assignee") or "default"
+        kind = "execution" if title.startswith("[项目执行]") else "collab"
+        display_title = strip_project_title(title)
+        if title.startswith("[协作子任务]"):
+            display_title = re.sub(r"^\[[^\]]+\]\s*", "", title).strip() or display_title
+        items.append({
             "id": task.get("id"),
-            "title": strip_project_title(task.get("title")),
+            "title": display_title,
             "status": task.get("status"),
-            "assignee": task.get("assignee"),
+            "assignee": assignee,
             "priority": task.get("priority"),
             "created": task.get("created_at"),
             "completed": task.get("completed_at"),
-        }
-        for task in tasks
-        if str(task.get("title", "")).startswith("[项目执行]")
-        and is_meaningful_project_task(task)
-    ]
-    latest_by_key = {}
-    for item in items:
-        key = project_notice_key({"title": f"[项目执行] {item.get('title', '')}"})
-        existing = latest_by_key.get(key)
-        item_ts = item.get("completed") or item.get("created") or 0
-        existing_ts = (existing or {}).get("completed") or (existing or {}).get("created") or 0
-        if not existing or item_ts >= existing_ts:
-            latest_by_key[key] = item
-    items = sorted(
-        latest_by_key.values(),
-        key=lambda item: item.get("completed") or item.get("created") or 0,
+            "kind": kind,
+            "owner_name": PROFILES.get(assignee, PROFILES["default"])["name"],
+            "owner_short": PROFILES.get(assignee, PROFILES["default"])["short"],
+        })
+    items.sort(
+        key=lambda item: (
+            status_rank.get(item.get("status"), 9),
+            -int(item.get("priority") or 0),
+            -(item.get("created") or 0),
+        )
     )
-    blocked = [item for item in items if item.get("status") == "blocked"][-4:]
-    done = [item for item in items if item.get("status") == "done"][-4:]
-    return sorted(
-        blocked + done,
-        key=lambda item: item.get("completed") or item.get("created") or 0,
-    )[-limit:]
+    return items[:limit]
 
 
 def group_task_body(group_id, round_no, profile, owner_message, transcript, company_state, final_round=False, origin="boss", initiator=None):

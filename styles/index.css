@@ -63,6 +63,20 @@
     .mobile-company-card h3{margin:0 0 8px;font-size:16px;color:#182026}
     .mobile-company-card p,.mobile-company-card li{margin:0;font-size:13px;line-height:1.7;color:#59696d}
     .mobile-company-card ul{margin:8px 0 0;padding-left:18px}
+    .mobile-kanban{display:grid;gap:12px;margin-top:12px}
+    .mobile-kanban-group{padding:12px;border:2px solid #c8ced8;background:#fffdf6;box-shadow:2px 2px 0 #d7dbe3}
+    .mobile-kanban-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+    .mobile-kanban-name{font-size:14px;font-weight:900;color:#182026}
+    .mobile-kanban-count{min-width:22px;height:22px;padding:0 6px;border:2px solid #425158;background:#edf1f7;color:#425158;display:grid;place-items:center;font-size:11px;font-weight:900}
+    .mobile-kanban-list{display:grid;gap:8px}
+    .mobile-kanban-item{padding:10px 10px 9px;border:2px solid #dae0e8;background:#f5f1e7}
+    .mobile-kanban-item strong{display:block;font-size:13px;line-height:1.45;color:#253137}
+    .mobile-kanban-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+    .mobile-kanban-tag{padding:3px 7px;border:2px solid #cad0d4;background:#eef1f8;color:#5c6770;font-size:11px}
+    .mobile-kanban-tag.blocked{border-color:#d48372;background:#fff0ec;color:#9d4332}
+    .mobile-kanban-tag.running{border-color:#67a891;background:#ecfff6;color:#2f6d57}
+    .mobile-kanban-tag.ready{border-color:#d2b16f;background:#fff8e8;color:#8f6a1c}
+    .mobile-kanban-tag.todo{border-color:#bbc4cb;background:#f1f4f7;color:#66747a}
     .mobile-row-buttons{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
     .mobile-ghost-btn,.mobile-solid-btn{height:34px;padding:0 12px;border:3px solid #354349;font-weight:800}
     .mobile-ghost-btn{background:#f7f4ea;color:#253137}

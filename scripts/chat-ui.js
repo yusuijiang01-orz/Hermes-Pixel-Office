@@ -60,6 +60,14 @@ function compactText(text, max = 42) {
   if (!cleaned) return "";
   return cleaned.length > max ? cleaned.slice(0, max - 1) + "…" : cleaned;
 }
+function taskStatusLabel(status) {
+  return {
+    blocked: "阻塞",
+    running: "进行中",
+    ready: "待开始",
+    todo: "排队中"
+  }[String(status || "").toLowerCase()] || "处理中";
+}
 function validChatLines(msg) {
   const lines = ((msg == null ? void 0 : msg.chat_lines) || []).map((line) => cleanSpeechText(line)).filter((line) => line && !uiNoise(line));
   if (lines.length) return lines;
@@ -180,13 +188,33 @@ function renderMobileContacts() {
 }
 function renderMobileCompany() {
   var _a2, _b2, _c2, _d2, _e2, _f2;
-  const company = (state == null ? void 0 : state.company) || {}, notices = ((_a2 = company.pending_notices) == null ? void 0 : _a2.length) ? company.pending_notices : [], roles = ((_b2 = company.open_roles) == null ? void 0 : _b2.length) ? company.open_roles : [], relations = ((state == null ? void 0 : state.agents) || []).map((agent) => `${agent.short || agent.name}：${agent.relationship_summary || "暂无关系备注"}`);
+  const company = (state == null ? void 0 : state.company) || {}, notices = ((_a2 = company.pending_notices) == null ? void 0 : _a2.length) ? company.pending_notices : [], roles = ((_b2 = company.open_roles) == null ? void 0 : _b2.length) ? company.open_roles : [], relations = ((state == null ? void 0 : state.agents) || []).map((agent) => `${agent.short || agent.name}：${agent.relationship_summary || "暂无关系备注"}`), tasks = (company.project_tasks || []).slice();
   document.querySelector("#mobileWorldLabel").textContent = ((_c2 = state == null ? void 0 : state.world) == null ? void 0 : _c2.label) || "读取中";
   document.querySelector("#mobileWeatherChip").textContent = ((_d2 = state == null ? void 0 : state.world) == null ? void 0 : _d2.weather) || "天气";
-  document.querySelector("#mobileCompanyBadge").textContent = String(Math.max(1, notices.length + roles.length));
+  document.querySelector("#mobileCompanyBadge").textContent = String(Math.max(1, notices.length + roles.length + tasks.length));
   document.querySelector("#mobileCompanySummary").textContent = `${company.studio_name || "Hermes Pixel Works"} 正在推进「${((_e2 = state == null ? void 0 : state.board) == null ? void 0 : _e2.name) || "暂无项目"}」，当前为 ${(state == null ? void 0 : state.world) ? worldClockText(true) : "--:--"} · ${((_f2 = state == null ? void 0 : state.world) == null ? void 0 : _f2.next) || "等待下一阶段"}`;
   document.querySelector("#mobileNotices").innerHTML = [...notices, ...roles.map((role) => `开放岗位：${role}`)].map((item) => `<li>${esc(item)}</li>`).join("") || "<li>暂无招聘通知，工位保持满编。</li>";
   document.querySelector("#mobileRelations").innerHTML = relations.map((item) => `<li>${esc(item)}</li>`).join("");
+  const summary = document.querySelector("#mobileTaskSummary"), board = document.querySelector("#mobileTaskBoard");
+  if (!tasks.length) {
+    summary.textContent = "当前没有未完成任务，员工们手头是清空状态。";
+    board.innerHTML = '<div class="mobile-section-title">暂无待办卡片</div>';
+    return;
+  }
+  const byAssignee = /* @__PURE__ */ new Map();
+  tasks.forEach((task) => {
+    const assignee = task.assignee || "default";
+    if (!byAssignee.has(assignee)) byAssignee.set(assignee, []);
+    byAssignee.get(assignee).push(task);
+  });
+  const total = tasks.length;
+  const blockedCount = tasks.filter((task) => task.status === "blocked").length;
+  summary.textContent = `当前共有 ${total} 条未完成任务${blockedCount ? `，其中 ${blockedCount} 条阻塞中` : ""}。下面按员工展开。`;
+  board.innerHTML = [...byAssignee.entries()].map(([assignee, items]) => {
+    const owner = items[0] || {};
+    const ownerName = owner.owner_short || owner.owner_name || assignee;
+    return `<section class="mobile-kanban-group"><div class="mobile-kanban-head"><div class="mobile-kanban-name">${esc(ownerName)}</div><span class="mobile-kanban-count">${items.length}</span></div><div class="mobile-kanban-list">${items.map((task) => `<article class="mobile-kanban-item"><strong>${esc(task.title || "未命名任务")}</strong><div class="mobile-kanban-meta"><span class="mobile-kanban-tag ${esc(task.status || "todo")}">${esc(taskStatusLabel(task.status))}</span><span class="mobile-kanban-tag">${task.kind === "collab" ? "协作子任务" : "项目执行"}</span></div></article>`).join("")}</div></section>`;
+  }).join("");
 }
 function renderMobileChatScreen() {
   var _a2, _b2;
