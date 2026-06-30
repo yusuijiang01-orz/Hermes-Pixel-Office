@@ -547,6 +547,13 @@ def remember_team_decision(company_state, text):
     cleaned = re.sub(r"\s+", " ", str(text or "")).strip()
     if not cleaned:
         return company_state
+    decision_topic = cleaned.split("接手推进：", 1)[-1].strip() if "接手推进：" in cleaned else cleaned
+    if not is_project_execution_request(decision_topic) and not has_project_context(decision_topic):
+        return company_state
+    if is_followup_confirmation_message(decision_topic):
+        return company_state
+    if any(marker in decision_topic for marker in ("搞笑", "哈哈", "笑死", "离谱")) and not has_project_context(decision_topic):
+        return company_state
     today = datetime.now().strftime("%Y-%m-%d")
     item = {"time": today, "text": cleaned[:260]}
     decisions = company_state.setdefault("team_decisions", [])
@@ -569,6 +576,8 @@ def stale_project_review_messages(tasks, company_state):
         title = str(task.get("title") or "")
         status = task.get("status")
         if status in ("done", "archived") or title.startswith(("[老板群聊:", "[内部群聊:", "[老板私聊]")):
+            continue
+        if title.startswith("[项目执行]") and not is_meaningful_project_task(task):
             continue
         if not (title.startswith("[项目执行]") or any(word in title for word in ("Companyverse", "Reboot", "Milestone", "Demo", "游戏", "编辑模式", "ARPG"))):
             continue
@@ -605,6 +614,36 @@ def stale_project_review_messages(tasks, company_state):
     if changed:
         save_company_state(company_state)
     return notices
+
+
+def visible_team_decisions(items, limit=12):
+    visible = []
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        text = str(item.get("text") or "").strip()
+        topic = text.split("接手推进：", 1)[-1].strip() if "接手推进：" in text else text
+        if not is_project_execution_request(topic) and not has_project_context(topic):
+            continue
+        if is_followup_confirmation_message(topic):
+            continue
+        if any(marker in topic for marker in ("搞笑", "哈哈", "笑死", "离谱")) and not has_project_context(topic):
+            continue
+        visible.append(item)
+    return visible[-limit:]
+
+
+def visible_stale_project_reviews(items, tasks, limit=12):
+    task_index = {task.get("id"): task for task in tasks or [] if isinstance(task, dict) and task.get("id")}
+    visible = []
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        task = task_index.get(item.get("task_id"))
+        if task and str(task.get("title", "")).startswith("[项目执行]") and not is_meaningful_project_task(task):
+            continue
+        visible.append(item)
+    return visible[-limit:]
 
 
 def remember_boss_message(message, company_state):
@@ -1816,8 +1855,8 @@ def fast_state():
             "universe_events": (company_state.get("universe_events") or [])[-12:],
             "universe_ideas": (company_state.get("universe_ideas") or [])[-12:],
             "universe_tasks": (company_state.get("universe_tasks") or [])[-12:],
-            "team_decisions": (company_state.get("team_decisions") or [])[-12:],
-            "stale_project_reviews": (company_state.get("stale_project_reviews") or [])[-12:],
+            "team_decisions": visible_team_decisions(company_state.get("team_decisions") or []),
+            "stale_project_reviews": visible_stale_project_reviews(company_state.get("stale_project_reviews") or [], tasks),
             "project_tasks": [],
         },
     }
@@ -2307,8 +2346,8 @@ def get_state():
             "universe_events": (company_state.get("universe_events") or [])[-12:],
             "universe_ideas": (company_state.get("universe_ideas") or [])[-12:],
             "universe_tasks": (company_state.get("universe_tasks") or [])[-12:],
-            "team_decisions": (company_state.get("team_decisions") or [])[-12:],
-            "stale_project_reviews": (company_state.get("stale_project_reviews") or [])[-12:],
+            "team_decisions": visible_team_decisions(company_state.get("team_decisions") or []),
+            "stale_project_reviews": visible_stale_project_reviews(company_state.get("stale_project_reviews") or [], tasks),
             "project_tasks": project_tasks,
         },
     }
