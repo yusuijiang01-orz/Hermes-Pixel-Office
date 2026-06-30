@@ -540,10 +540,10 @@ function renderMobileShell() {
   primeReadState();
   document.querySelectorAll(".mobile-page").forEach((page) => page.classList.toggle("active", page.dataset.page === mobileState.tab));
   document.querySelector("#mobileBottomNav").querySelectorAll("button").forEach((button) => button.classList.toggle("active", button.dataset.tab === mobileState.tab));
+  renderMobileChatScreen();
   renderMobileMessages();
   renderMobileContacts();
   renderMobileCompany();
-  renderMobileChatScreen();
   renderMobileTaskSheet();
 }
 function openMobileChatPrivate(id, options = {}) {
