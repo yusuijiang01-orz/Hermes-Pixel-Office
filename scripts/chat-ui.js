@@ -319,6 +319,11 @@ function mergePendingMessages(realMessages) {
   const real = (realMessages || []).slice();
   pendingMessages = pendingMessages.filter((pending) => {
     if (real.some((msg) => msg.id === pending.id)) return false;
+    if (pending.mode === "group" && pending.origin === "boss") {
+      return !real.some(
+        (msg) => msg.mode === "group" && msg.origin === "boss" && msg.prompt === pending.prompt && msg.conversation === pending.conversation
+      );
+    }
     return !real.some(
       (msg) => msg.mode === pending.mode && msg.agent === pending.agent && msg.prompt === pending.prompt && (pending.mode !== "group" || msg.conversation === pending.conversation) && Math.abs((msg.created || 0) - (pending.created || 0)) <= 45
     );

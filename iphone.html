@@ -89,7 +89,7 @@
 <script>
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const cfgKey="hermes-iphone-config-v1",stateKey="hermes-iphone-state-v1";
-let config=loadConfig(),state=loadCachedState(),mode="group",agent="default",source=null,refreshTimer=0,lastDraw=0;
+let config=loadConfig(),state=loadCachedState(),mode="group",agent="default",source=null,refreshTimer=0,lastDraw=0,sendLocked=false;
 const canvas=$("#office"),ctx=canvas.getContext("2d");
 const colors={default:"#4aa6a0",planner:"#e7b34d",researcher:"#e45a9c",writer:"#a878d1"};
 const names={default:"阿默",planner:"小韩",researcher:"小研",writer:"小文"};
@@ -145,13 +145,21 @@ function renderChat(){
   const all=state?.messages||[],log=$("#chatLog");
   let html="";
   if(mode==="group"){
-    const groups=all.filter(m=>m.mode==="group").sort((a,b)=>(a.created||0)-(b.created||0));
-    for(const m of groups){
-      if(m.origin==="boss"&&m.prompt)html+=`<div class="bubble mine">${esc(m.prompt)}<span class="time">${fmtTime(m.created)}</span></div>`;
-      const speaker=(m.name||names[m.agent]||"员工").split(" ").slice(-1)[0];
-      const lines=validLines(m);
-      if(lines.length)html+=lines.map(line=>`<div class="bubble theirs"><span class="name">${esc(speaker)}<span class="time">${fmtTime(m.created)}</span></span>${esc(line)}</div>`).join("");
-      else if(!m.reply)html+=`<div class="bubble theirs pending"><span class="name">${esc(speaker)}</span>正在输入...</div>`;
+    const groups=new Map();
+    for(const m of all.filter(m=>m.mode==="group").sort((a,b)=>(a.created||0)-(b.created||0))){
+      const key=m.conversation||"team";
+      if(!groups.has(key))groups.set(key,[]);
+      groups.get(key).push(m);
+    }
+    for(const msgs of groups.values()){
+      const boss=msgs.find(m=>m.origin==="boss"&&m.prompt)||msgs.find(m=>m.prompt);
+      if(boss)html+=`<div class="bubble mine">${esc(boss.prompt)}<span class="time">${fmtTime(boss.created)}</span></div>`;
+      for(const m of msgs){
+        const speaker=(m.name||names[m.agent]||"员工").split(" ").slice(-1)[0];
+        const lines=validLines(m);
+        if(lines.length)html+=lines.map(line=>`<div class="bubble theirs"><span class="name">${esc(speaker)}<span class="time">${fmtTime(m.created)}</span></span>${esc(line)}</div>`).join("");
+        else if(!m.reply)html+=`<div class="bubble theirs pending"><span class="name">${esc(speaker)}</span>正在输入...</div>`;
+      }
     }
   }else{
     for(const m of all.filter(m=>m.mode!=="group"&&m.agent===agent).sort((a,b)=>(a.created||0)-(b.created||0))){
@@ -181,12 +189,24 @@ function startRealtime(){
 }
 function showError(err){$("#conn").textContent="连接失败";$("#subtitle").textContent=err.message||String(err)}
 async function sendMessage(text){
-  const body={mode,agent:mode==="private"?agent:null,message:text,attachments:[]};
-  const resp=await fetch(api("/api/message"),{method:"POST",headers:headers(),body:JSON.stringify(body)});
-  const data=await resp.json().catch(()=>({}));
-  if(!resp.ok||data.error)throw Error(data.error||"发送失败");
-  if(data.messages?.length){state=state||{};state.messages=[...(state.messages||[]),...data.messages];renderChat()}
-  fetchState().catch(()=>{});
+  if(sendLocked)return;
+  sendLocked=true;
+  const input=$("#message"),submit=$("#chatForm button[type='submit']");
+  input.disabled=true;
+  if(submit)submit.disabled=true;
+  try{
+    const body={mode,agent:mode==="private"?agent:null,message:text,attachments:[]};
+    const resp=await fetch(api("/api/message"),{method:"POST",headers:headers(),body:JSON.stringify(body)});
+    const data=await resp.json().catch(()=>({}));
+    if(!resp.ok||data.error)throw Error(data.error||"发送失败");
+    if(data.messages?.length){state=state||{};state.messages=[...(state.messages||[]),...data.messages];renderChat()}
+    fetchState().catch(()=>{});
+  }finally{
+    sendLocked=false;
+    input.disabled=false;
+    if(submit)submit.disabled=false;
+    input.focus();
+  }
 }
 $("#chatForm").addEventListener("submit",async e=>{e.preventDefault();const input=$("#message"),text=input.value.trim();if(!text)return;input.value="";try{await sendMessage(text)}catch(err){alert(err.message)}});
 $("#groupTab").addEventListener("click",()=>{mode="group";$("#groupTab").classList.add("active");$("#privateTab").classList.remove("active");$("#privatePicker").style.display="none";renderChat()});

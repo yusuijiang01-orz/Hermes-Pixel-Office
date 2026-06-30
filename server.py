@@ -2076,6 +2076,9 @@ def group_task_body(group_id, round_no, profile, owner_message, transcript, comp
 - 只说你自己会说的话，不替其他人发言。
 - 可使用 @阿默、@小韩、@小研、@小文，允许接梗、反驳、追问、阴阳怪气和轻微吐槽老板。
 - 这是即时聊天，不是工作汇报。可以半句、插话、反问、接上文、吐槽，像同事，不像客服。
+- 把群聊当成真实公司协作：遇到问题先互相讨论、互相补位，不要默认只对老板说话。
+- 小研默认负责查资料、拆参考、核实风险；其他人遇到拿不准的点，可以直接 @小研 求证。
+- 只有遇到预算、方向取舍、范围变更这类必须拍板的事，才 @老板 明确提问。
 - 每条消息 4-90 个汉字；一次输出 1-4 条，每条单独一行并以 [CHAT] 开头。
 - 禁止标题、列表、工作汇报格式、英文思考过程和“已完成/下一步”套话。
 - 禁止出现这些字样：任务完成、群聊回复完成、以自然口语化方式、保持沉默是合理的、作为某某补充说明。
@@ -2746,24 +2749,22 @@ class Handler(SimpleHTTPRequestHandler):
                 existing_tasks = json_command("kanban", "--board", board, "list", "--json") or []
                 if is_project_execution_request(message) and not project_task_exists(existing_tasks, message, group_id):
                     create_project_execution_task(board, message, company_state, group_id=group_id)
-                optimistic = []
-                for i, task in enumerate(created):
-                    speaker = (task or {}).get("assignee") or speakers[min(i, len(speakers) - 1)]
-                    optimistic.append({
-                        "id": (task or {}).get("id") or f"local-{created_at}-{speaker}-{i}",
-                        "agent": speaker,
-                        "prompt": display_message,
-                        "reply": None,
-                        "status": (task or {}).get("status") or "todo",
-                        "created": (task or {}).get("created_at") or created_at,
-                        "mode": "group",
-                        "conversation": group_id,
-                        "round": 1,
-                        "origin": "boss",
-                        "chat_lines": [],
-                        "name": PROFILES.get(speaker, PROFILES["default"])["name"],
-                        "attachments": attachments,
-                    })
+                lead = ((created[0] or {}).get("assignee") if created else None) or (speakers[0] if speakers else "planner")
+                optimistic = [{
+                    "id": (created[0] or {}).get("id") or f"local-{created_at}-{lead}",
+                    "agent": lead,
+                    "prompt": display_message,
+                    "reply": None,
+                    "status": (created[0] or {}).get("status") or "todo",
+                    "created": (created[0] or {}).get("created_at") or created_at,
+                    "mode": "group",
+                    "conversation": group_id,
+                    "round": 1,
+                    "origin": "boss",
+                    "chat_lines": [],
+                    "name": PROFILES.get(lead, PROFILES["default"])["name"],
+                    "attachments": attachments,
+                }]
             STATE_REFRESH_WAKE.set()
             self.send_json({"ok": True, "tasks": created, "messages": optimistic, "dispatch": "direct"})
         except Exception as exc:
