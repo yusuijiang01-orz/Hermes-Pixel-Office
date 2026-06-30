@@ -352,6 +352,25 @@ def default_auth_username():
     return "admin"
 
 
+def active_auth_users():
+    users = configured_auth_users()
+    if not production_single_company_mode():
+        return users
+    default_user = default_auth_username()
+    if default_user in users:
+        return {default_user: dict(users[default_user])}
+    if WEB_AUTH_USER and WEB_AUTH_PASSWORD:
+        return {
+            WEB_AUTH_USER: {
+                "password": WEB_AUTH_PASSWORD,
+                "board": FAST_BOARD_SLUG,
+                "company_state": COMPANY_STATE_PATH.name,
+                "studio_name": DEFAULT_COMPANY_STATE["studio_name"],
+            }
+        }
+    return users
+
+
 def current_request_username():
     return str(getattr(REQUEST_CONTEXT, "username", "") or "").strip()
 
@@ -1502,7 +1521,7 @@ def verify_auth_cookie(cookie_header):
     if len(parts) != 3:
         return ""
     user, exp_text, sig = parts
-    users = configured_auth_users()
+    users = active_auth_users()
     if user not in users or not exp_text.isdigit() or int(exp_text) < int(time.time()):
         return ""
     payload = f"{user}:{exp_text}"
@@ -2916,7 +2935,10 @@ def state_signature(state):
 
 
 def state_cache_key(username=None):
-    return str(username or current_request_username() or default_auth_username()).strip()
+    value = str(username or current_request_username() or default_auth_username()).strip()
+    if production_single_company_mode():
+        return default_auth_username()
+    return value
 
 
 def refresh_state_cache(username=None):
@@ -2950,6 +2972,8 @@ def start_state_watcher():
             STATE_REFRESH_WAKE.wait(3)
             STATE_REFRESH_WAKE.clear()
             usernames = set(configured_auth_users())
+            if production_single_company_mode():
+                usernames = {default_auth_username()}
             usernames.update(STATE_CACHE.keys())
             if not usernames:
                 usernames.add(default_auth_username())
@@ -3210,7 +3234,7 @@ class Handler(SimpleHTTPRequestHandler):
                         payload = {k: v[0] for k, v in parse_qs(raw).items()}
                     username = str(payload.get("username", ""))
                     password = str(payload.get("password", ""))
-                    user_info = configured_auth_users().get(username) or {}
+                    user_info = active_auth_users().get(username) or {}
                     if web_auth_enabled() and user_info and hmac.compare_digest(password, str(user_info.get("password") or "")):
                         self.send_json({"ok": True, "api_key": plugin_api_key(), "max_age": WEB_AUTH_MAX_AGE})
                     else:
@@ -3226,7 +3250,7 @@ class Handler(SimpleHTTPRequestHandler):
                     username = (form.get("username") or [""])[0]
                     password = (form.get("password") or [""])[0]
                     next_target = safe_next_path((form.get("next") or ["/"])[0])
-                    user_info = configured_auth_users().get(username) or {}
+                    user_info = active_auth_users().get(username) or {}
                     if user_info and hmac.compare_digest(password, str(user_info.get("password") or "")):
                         secure = "; Secure" if self.headers.get("X-Forwarded-Proto", "") == "https" else ""
                         cookie = f"hermes_session={make_auth_cookie(username)}; Max-Age={WEB_AUTH_MAX_AGE}; Path=/; HttpOnly; SameSite=Lax{secure}"
