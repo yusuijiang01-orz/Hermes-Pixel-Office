@@ -1,5 +1,91 @@
 var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
 let _mobileRenderedChatKey = "";
+const READ_STATE_KEY = "hermes-mobile-read-state-v1";
+let readState = loadReadState();
+function loadReadState() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(READ_STATE_KEY) || "{}");
+    return {
+      threads: parsed && typeof parsed.threads === "object" ? parsed.threads : {},
+      initialized: !!(parsed == null ? void 0 : parsed.initialized)
+    };
+  } catch (err) {
+    return { threads: {}, initialized: false };
+  }
+}
+function saveReadState() {
+  try {
+    localStorage.setItem(READ_STATE_KEY, JSON.stringify(readState));
+  } catch (err) {
+  }
+}
+function markThreadSeen(threadKey, ts = 0) {
+  const nextTs = Number(ts || 0);
+  if (!threadKey || !nextTs) return;
+  if (Number(readState.threads[threadKey] || 0) >= nextTs) return;
+  readState.threads[threadKey] = nextTs;
+  saveReadState();
+}
+function seenThreadTs(threadKey) {
+  return Number(readState.threads[threadKey] || 0);
+}
+function unreadCountForThread(threadKey, items) {
+  const seenTs = seenThreadTs(threadKey);
+  return (items || []).filter((item) => Number((item == null ? void 0 : item.created) || 0) > seenTs).length;
+}
+function privateMessageSeenTs(message) {
+  return Number((message == null ? void 0 : message.completed) || (message == null ? void 0 : message.created) || 0);
+}
+function latestPrivateReplyTs(agentId) {
+  const items = ((state == null ? void 0 : state.messages) || []).filter((msg) => msg.mode !== "group" && msg.agent === agentId && privateReplyText(msg));
+  return Math.max(0, ...items.map((item) => privateMessageSeenTs(item)));
+}
+function unreadPrivateCount(agentId) {
+  const threadKey = `private:${agentId}`;
+  const seenTs = seenThreadTs(threadKey);
+  return (((state == null ? void 0 : state.messages) || []).filter((msg) => msg.mode !== "group" && msg.agent === agentId && privateReplyText(msg)).filter((msg) => privateMessageSeenTs(msg) > seenTs)).length;
+}
+function primeReadState() {
+  if (readState.initialized || !(state == null ? void 0 : state.messages)) return;
+  const privateMessages = ((state == null ? void 0 : state.messages) || []).filter((msg) => msg.mode !== "group");
+  ((state == null ? void 0 : state.agents) || []).forEach((agent) => {
+    const latest = privateMessages.filter((msg) => msg.agent === agent.id && privateReplyText(msg)).sort((a, b) => privateMessageSeenTs(b) - privateMessageSeenTs(a))[0];
+    if (latest) readState.threads[`private:${agent.id}`] = privateMessageSeenTs(latest);
+  });
+  const groupMessages = ((state == null ? void 0 : state.messages) || []).filter((msg) => isRenderableGroupMessage(msg) && (msg.conversation || "team") === "team");
+  const feedItems = ((state == null ? void 0 : state.team_feed) || []).filter((item) => (item == null ? void 0 : item.text) && !uiNoise(item.text));
+  const latestGroupTs = Math.max(
+    0,
+    ...groupMessages.map((msg) => msg.created || 0),
+    ...feedItems.map((item) => item.created || 0)
+  );
+  if (latestGroupTs) readState.threads["group:team"] = latestGroupTs;
+  readState.initialized = true;
+  saveReadState();
+}
+function latestGroupThreadTs() {
+  const groupMessages = ((state == null ? void 0 : state.messages) || []).filter((msg) => isRenderableGroupMessage(msg) && (msg.conversation || "team") === "team");
+  const feedItems = ((state == null ? void 0 : state.team_feed) || []).filter((item) => (item == null ? void 0 : item.text) && !uiNoise(item.text));
+  return Math.max(
+    0,
+    ...groupMessages.map((msg) => msg.created || 0),
+    ...feedItems.map((item) => item.created || 0)
+  );
+}
+function companyPendingCount() {
+  var _a2, _b2;
+  const company = (state == null ? void 0 : state.company) || {};
+  const notices = ((_a2 = company.pending_notices) == null ? void 0 : _a2.length) ? company.pending_notices : [];
+  const roles = ((_b2 = company.open_roles) == null ? void 0 : _b2.length) ? company.open_roles : [];
+  const tasks = (company.project_tasks || []).filter((task) => String(task.status || "").toLowerCase() !== "done");
+  return notices.length + roles.length + tasks.length;
+}
+function setBadgeCount(node, count) {
+  if (!node) return;
+  const safeCount = Math.max(0, Number(count || 0));
+  node.textContent = String(Math.min(99, safeCount));
+  node.style.display = safeCount > 0 ? "" : "none";
+}
 function msgTime(ts, withSeconds = false) {
   if (!ts) return "";
   return new Date(ts * 1e3).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: withSeconds ? "2-digit" : void 0 });
@@ -152,17 +238,19 @@ function agentById(id) {
 function getPrivateThreads() {
   const messages = ((state == null ? void 0 : state.messages) || []).filter((msg) => msg.mode !== "group");
   return ((state == null ? void 0 : state.agents) || []).map((agent) => {
-    const thread = messages.filter((msg) => msg.agent === agent.id).sort((a, b) => (b.created || 0) - (a.created || 0))[0];
+    const threadMessages = messages.filter((msg) => msg.agent === agent.id);
+    const thread = threadMessages.slice().sort((a, b) => (b.created || 0) - (a.created || 0))[0];
+    const threadKey = `private:${agent.id}`;
     return {
       kind: "private",
-      key: `private-${agent.id}`,
+      key: threadKey,
       agent: agent.id,
       name: agent.short || agent.name,
       role: agent.role,
       preview: threadPreview(thread) || compactText(agent.social_summary || agent.task, 46),
       time: msgTime(thread == null ? void 0 : thread.created),
       rawTime: (thread == null ? void 0 : thread.created) || 0,
-      badge: agent.status === "blocked" ? 1 : 0,
+      badge: unreadPrivateCount(agent.id),
       tags: [activityText({ ...agents[agent.id], ...agent }), compactText(agent.social_summary || "", 18)].filter(Boolean)
     };
   }).sort((a, b) => (b.rawTime || 0) - (a.rawTime || 0) || a.name.localeCompare(b.name, "zh-CN"));
@@ -175,6 +263,7 @@ function groupTopic(group) {
 function getGroupThreads() {
   var _a2;
   const items = ((state == null ? void 0 : state.messages) || []).filter((msg) => isRenderableGroupMessage(msg));
+  const threadKey = "group:team";
   const latestFeed = ((state == null ? void 0 : state.team_feed) || []).filter((item) => (item == null ? void 0 : item.text) && !uiNoise(item.text)).slice().sort((a, b) => (b.created || 0) - (a.created || 0))[0];
   const latestMessage = items.slice().sort((a, b) => (b.created || 0) - (a.created || 0))[0];
   const latestFeedTs = (latestFeed == null ? void 0 : latestFeed.created) || 0;
@@ -190,7 +279,10 @@ function getGroupThreads() {
     preview,
     time: msgTime(latestTs),
     rawTime: latestTs,
-    badge: ((state == null ? void 0 : state.agents) || []).filter((agent) => agent.status === "blocked").length
+    badge: unreadCountForThread(threadKey, [
+      ...items.map((msg) => ({ created: msg.created || 0 })),
+      ...(((state == null ? void 0 : state.team_feed) || []).filter((item) => (item == null ? void 0 : item.text) && !uiNoise(item.text)).map((item) => ({ created: item.created || 0 })))
+    ])
   }];
 }
 function matchesSearch(item, query) {
@@ -208,8 +300,7 @@ function renderMobileMessages() {
   document.querySelector("#mobileOnlineChip").textContent = `${((state == null ? void 0 : state.agents) || []).length} 人在线`;
   document.querySelector("#mobileClock").textContent = (state == null ? void 0 : state.world) ? worldClockText(true) : (/* @__PURE__ */ new Date()).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   document.querySelector("#mobileStatus").textContent = `${((_c2 = state == null ? void 0 : state.world) == null ? void 0 : _c2.label) || "在线"} · ${((_d2 = state == null ? void 0 : state.world) == null ? void 0 : _d2.weather) || "办公室"}`;
-  const unread = ((state == null ? void 0 : state.agents) || []).filter((agent) => agent.status === "blocked").length + (((state == null ? void 0 : state.team_feed) || []).length ? 1 : 0);
-  document.querySelector("#mobileMsgBadge").textContent = String(Math.min(99, Math.max(1, unread)));
+  setBadgeCount(document.querySelector("#mobileMsgBadge"), threads.reduce((sum, item) => sum + (item.badge || 0), 0));
   if (!filtered.length) {
     box.innerHTML = '<div class="mobile-section-title">没有匹配到聊天</div>';
     return;
@@ -223,7 +314,7 @@ function renderMobileContacts() {
   var _a2, _b2, _c2;
   const strip = document.querySelector("#mobileContactStrip"), box = document.querySelector("#mobileContactsList"), query = ((_a2 = document.querySelector("#mobileContactSearch")) == null ? void 0 : _a2.value.trim()) || "";
   document.querySelector("#mobileEmployeeCount").textContent = `${((state == null ? void 0 : state.agents) || []).length} 位员工`;
-  document.querySelector("#mobileContactBadge").textContent = String(((state == null ? void 0 : state.agents) || []).length);
+  setBadgeCount(document.querySelector("#mobileContactBadge"), getPrivateThreads().filter((item) => item.badge > 0).length);
   document.querySelector("#mobileContactTabs").querySelectorAll("button").forEach((button) => button.classList.toggle("active", button.dataset.kind === mobileState.contactKind));
   if (mobileState.contactKind === "friends") {
     const friends = ((state == null ? void 0 : state.agents) || []).map((agent) => ({
@@ -247,7 +338,7 @@ function renderMobileCompany() {
   const company = (state == null ? void 0 : state.company) || {}, notices = ((_a2 = company.pending_notices) == null ? void 0 : _a2.length) ? company.pending_notices : [], roles = ((_b2 = company.open_roles) == null ? void 0 : _b2.length) ? company.open_roles : [], relations = ((state == null ? void 0 : state.agents) || []).map((agent) => `${agent.short || agent.name}：${agent.relationship_summary || "暂无关系备注"}`), tasks = (company.project_tasks || []).slice();
   document.querySelector("#mobileWorldLabel").textContent = ((_c2 = state == null ? void 0 : state.world) == null ? void 0 : _c2.label) || "读取中";
   document.querySelector("#mobileWeatherChip").textContent = ((_d2 = state == null ? void 0 : state.world) == null ? void 0 : _d2.weather) || "天气";
-  document.querySelector("#mobileCompanyBadge").textContent = String(Math.max(1, notices.length + roles.length + tasks.length));
+  setBadgeCount(document.querySelector("#mobileCompanyBadge"), companyPendingCount());
   document.querySelector("#mobileCompanySummary").textContent = `${company.studio_name || "Hermes Pixel Works"} 正在推进「${((_e2 = state == null ? void 0 : state.board) == null ? void 0 : _e2.name) || "暂无项目"}」，当前为 ${(state == null ? void 0 : state.world) ? worldClockText(true) : "--:--"} · ${((_f2 = state == null ? void 0 : state.world) == null ? void 0 : _f2.next) || "等待下一阶段"}`;
   document.querySelector("#mobileNotices").innerHTML = [...notices, ...roles.map((role) => `开放岗位：${role}`)].map((item) => `<li>${esc(item)}</li>`).join("") || "<li>暂无招聘通知，工位保持满编。</li>";
   document.querySelector("#mobileRelations").innerHTML = relations.map((item) => `<li>${esc(item)}</li>`).join("");
@@ -332,6 +423,7 @@ function renderMobileChatScreen() {
         `<div class="bubble theirs ${reply ? "" : "pending"}"><span class="bubble-name">${esc(agent.short || agent.name || "员工")}<span class="bubble-time">${msgTime(m.completed || m.created)}</span></span>${reply ? messageTextHtml(compactText(reply, 400), m.attachments) : pendingReplyLabel(m)}</div>`
       ].join("");
     });
+    markThreadSeen(threadKey2, latestPrivateReplyTs((agent == null ? void 0 : agent.id) || ""));
     restoreScroll(body, "mobile", threadKey2);
     return;
   }
@@ -386,10 +478,12 @@ function renderMobileChatScreen() {
     });
     container.innerHTML = html.join("");
   });
+  markThreadSeen(threadKey, latestGroupThreadTs());
   restoreScroll(body, "mobile", threadKey);
 }
 function renderMobileShell() {
   if (!state) return;
+  primeReadState();
   document.querySelectorAll(".mobile-page").forEach((page) => page.classList.toggle("active", page.dataset.page === mobileState.tab));
   document.querySelector("#mobileBottomNav").querySelectorAll("button").forEach((button) => button.classList.toggle("active", button.dataset.tab === mobileState.tab));
   renderMobileMessages();
@@ -711,6 +805,7 @@ function renderChat() {
         `<div class="bubble theirs ${reply ? "" : "pending"}"><span class="bubble-name">${esc(m.name || "员工")}<span class="bubble-time">${msgTime(m.completed || m.created)}</span></span>${reply ? messageTextHtml(reply, m.attachments) : pendingReplyLabel(m)}</div>`
       ].join("");
     });
+    markThreadSeen(threadKey, latestPrivateReplyTs(selected || ""));
     restoreScroll(box, "desktop", threadKey);
     _prevPrivateHash = hash;
     _renderedChatMode = "private";
@@ -765,6 +860,7 @@ function renderChat() {
       });
       container.innerHTML = html.join("");
     });
+    markThreadSeen(threadKey, latestGroupThreadTs());
     restoreScroll(box, "desktop", threadKey);
     _prevGroupHash = hash;
     _renderedChatMode = "group";
