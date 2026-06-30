@@ -51,6 +51,7 @@ DISPATCH_RERUN = set()
 AUTO_CHAT_LOCK = threading.Lock()
 DIRECT_CHAT_LOCK = threading.Lock()
 DIRECT_CHAT_ACTIVE = set()
+DIRECT_CHAT_SEMAPHORE = threading.BoundedSemaphore(1)
 STATE_COND = threading.Condition()
 # Performance caches: prevent redundant subprocess calls and log file reads
 _TASK_REPLY_CACHE = {}  # (board_slug, task_id) -> (reply, timestamp)
@@ -1534,8 +1535,17 @@ def visible_chat_tasks(tasks):
     ]
     deduped = []
     seen_internal = set()
+    seen_private_newer = set()
     for task in reversed(filtered):
         title = str(task.get("title", "") or "")
+        is_actionable = task.get("status") in ACTIONABLE_TASK_STATUSES
+        has_result = bool(str(task.get("result") or "").strip())
+        if not title.startswith(("[老板群聊:", "[内部群聊:")):
+            assignee = task.get("assignee")
+            if assignee in seen_private_newer and is_actionable and not has_result:
+                continue
+            if assignee:
+                seen_private_newer.add(assignee)
         if title.startswith("[内部群聊:"):
             prompt = extract_group_topic(task.get("body", ""))
             key = (task.get("assignee"), prompt)
@@ -1620,15 +1630,16 @@ def queue_direct_chat(board_slug, tasks):
         task_id = task["id"]
         profile = task.get("assignee") or "default"
         try:
-            reply = clean_cli_reply(run_hermes(
-                "-p", profile, "--accept-hooks", "chat", "-Q",
-                "--source", "tool", "--max-turns", "6",
-                "-q", direct_chat_prompt(task),
-                timeout=150,
-            ))
-            if not reply:
-                reply = "[CHAT] 我看到了，但这条消息刚才没有生成有效回复。"
-            run_hermes("kanban", "--board", board_slug, "complete", task_id, "--result", reply, "--summary", reply, timeout=30)
+            with DIRECT_CHAT_SEMAPHORE:
+                reply = clean_cli_reply(run_hermes(
+                    "-p", profile, "--accept-hooks", "chat", "-Q",
+                    "--source", "tool", "--max-turns", "6",
+                    "-q", direct_chat_prompt(task),
+                    timeout=150,
+                ))
+                if not reply:
+                    reply = "[CHAT] 我看到了，但这条消息刚才没有生成有效回复。"
+                run_hermes("kanban", "--board", board_slug, "complete", task_id, "--result", reply, "--summary", reply, timeout=30)
         except Exception as exc:
             log_runtime_error(f"direct_chat {task_id} {profile}", exc)
             fallback = "[CHAT] 我这边执行器断了一下，先别把这条当正式结论，我会等下一轮继续接。"
@@ -1647,6 +1658,27 @@ def queue_direct_chat(board_slug, tasks):
                 continue
             DIRECT_CHAT_ACTIVE.add(task_id)
         threading.Thread(target=worker, args=(task,), daemon=True).start()
+
+
+def rescue_stalled_chat_tasks(board_slug, tasks, stale_after=45, limit=6):
+    now = int(time.time())
+    stalled = []
+    for task in tasks or []:
+        title = str(task.get("title", "") or "")
+        if not title.startswith(CHAT_TASK_PREFIXES):
+            continue
+        if task.get("status") not in ACTIONABLE_TASK_STATUSES:
+            continue
+        if str(task.get("result") or "").strip():
+            continue
+        created = int(task.get("created_at") or 0)
+        if not created or now - created < stale_after:
+            continue
+        stalled.append(task)
+    if not stalled:
+        return False
+    queue_direct_chat(board_slug, sorted(stalled, key=lambda task: task.get("created_at") or 0)[-limit:])
+    return True
 
 
 def mentioned_profiles(text):
@@ -2238,6 +2270,7 @@ def get_state():
     changed = maybe_spawn_internal_chat(board_slug, tasks, company_state, world)
     changed = advance_group_conversations(board_slug, tasks, company_state) or changed
     changed = sediment_completed_chat_tasks(board_slug, tasks, company_state) or changed
+    changed = rescue_stalled_chat_tasks(board_slug, tasks) or changed
     if changed:
         queue_dispatch(board_slug, "4", "5")
         tasks = json_command("kanban", "--board", board_slug, "list", "--json") or tasks

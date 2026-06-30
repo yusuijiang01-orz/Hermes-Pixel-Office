@@ -110,16 +110,21 @@ function groupTopic(group) {
 function getGroupThreads() {
   var _a2;
   const items = ((state == null ? void 0 : state.messages) || []).filter((msg) => isRenderableGroupMessage(msg));
-  const latestFeed = ((state == null ? void 0 : state.team_feed) || []).filter((item) => (item == null ? void 0 : item.text) && !uiNoise(item.text)).slice(-1)[0];
+  const latestFeed = ((state == null ? void 0 : state.team_feed) || []).filter((item) => (item == null ? void 0 : item.text) && !uiNoise(item.text)).slice().sort((a, b) => (b.created || 0) - (a.created || 0))[0];
   const latestMessage = items.slice().sort((a, b) => (b.created || 0) - (a.created || 0))[0];
+  const latestFeedTs = (latestFeed == null ? void 0 : latestFeed.created) || 0;
+  const latestMessageTs = (latestMessage == null ? void 0 : latestMessage.created) || 0;
+  const useFeedPreview = latestFeedTs >= latestMessageTs && latestFeed;
+  const preview = useFeedPreview ? compactText(latestFeed == null ? void 0 : latestFeed.text, 54) : compactText(threadPreview(latestMessage) || ((_a2 = state == null ? void 0 : state.board) == null ? void 0 : _a2.name) || "团队频道", 54);
+  const latestTs = Math.max(latestFeedTs, latestMessageTs);
   return [{
     kind: "group",
     key: "group-team",
     conversation: "team",
     name: "全员群聊",
-    preview: compactText((latestFeed == null ? void 0 : latestFeed.text) || threadPreview(latestMessage) || ((_a2 = state == null ? void 0 : state.board) == null ? void 0 : _a2.name) || "团队频道", 54),
-    time: msgTime((latestFeed == null ? void 0 : latestFeed.created) || (latestMessage == null ? void 0 : latestMessage.created)),
-    rawTime: (latestFeed == null ? void 0 : latestFeed.created) || (latestMessage == null ? void 0 : latestMessage.created) || 0,
+    preview,
+    time: msgTime(latestTs),
+    rawTime: latestTs,
     badge: ((state == null ? void 0 : state.agents) || []).filter((agent) => agent.status === "blocked").length
   }];
 }
