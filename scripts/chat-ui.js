@@ -1,4 +1,5 @@
 var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
+let _mobileRenderedChatKey = "";
 function msgTime(ts) {
   if (!ts) return "";
   return new Date(ts * 1e3).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
@@ -197,6 +198,10 @@ function renderMobileChatScreen() {
   if (mobileState.chatMode === "private") {
     const agent = agentById(mobileState.agent) || agentById(selected) || ((_a2 = state == null ? void 0 : state.agents) == null ? void 0 : _a2[0]);
     const threadKey2 = `private:${(agent == null ? void 0 : agent.id) || "none"}`;
+    if (_mobileRenderedChatKey !== threadKey2) {
+      body.innerHTML = "";
+      _mobileRenderedChatKey = threadKey2;
+    }
     title.textContent = (agent == null ? void 0 : agent.short) || "私聊";
     subtitle.textContent = agent ? `${agent.role} · ${activityText({ ...agents[agent.id], ...agent })}` : "连接中";
     const items = all.filter((msg) => msg.mode !== "group" && msg.agent === (agent == null ? void 0 : agent.id)).sort((a, b) => (a.created || 0) - (b.created || 0));
@@ -231,6 +236,10 @@ function renderMobileChatScreen() {
     return;
   }
   const threadKey = `group:${mobileState.conversation || "team"}`;
+  if (_mobileRenderedChatKey !== threadKey) {
+    body.innerHTML = "";
+    _mobileRenderedChatKey = threadKey;
+  }
   title.textContent = mobileState.conversation === "team" ? "全员群聊" : "群聊讨论";
   subtitle.textContent = ((_b2 = state == null ? void 0 : state.board) == null ? void 0 : _b2.name) || "团队频道";
   const groups = /* @__PURE__ */ new Map();
