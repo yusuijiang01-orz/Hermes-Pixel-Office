@@ -154,6 +154,7 @@ DEFAULT_COMPANY_STATE = {
         "老板在聊天里明确提出开发、修改、交付、先做一版看看时，视为项目指令。",
         "员工在群里承诺我来做、我负责、我立马去做时，承诺者必须成为执行人或创建自己能推动的子任务。",
         "聊天回复不能阻塞执行；先行动，完成后回到原群或私聊反馈。",
+        "聊天人格和执行人格分离：闲聊可以像同事接话吐槽；一旦进入项目指令，默认立刻执行，不用今晚、明天、回头再看来拖延。",
         "每个真实项目任务必须有可验收结果：访问地址、改动文件、测试/验证方式。",
         "普通闲聊不制造任务；项目指令不只聊天。"
     ],
@@ -681,6 +682,53 @@ def strategy_documents_payload():
     ]
 
 
+def boss_panel_payload(active_board, project_tasks, team_decisions, stale_reviews):
+    tasks = [task for task in project_tasks or [] if isinstance(task, dict)]
+    blocked = [task for task in tasks if task.get("status") == "blocked"][:4]
+    running = [task for task in tasks if task.get("status") == "running"][:4]
+    ready = [task for task in tasks if task.get("status") == "ready"][:4]
+    todo = [task for task in tasks if task.get("status") == "todo"][:4]
+    next_item = (blocked or running or ready or todo or [None])[0]
+    summary = {
+        "project_name": (active_board or {}).get("name") or "暂无项目",
+        "project_slug": (active_board or {}).get("slug") or "default",
+        "total_tasks": len(tasks),
+        "blocked_count": len(blocked),
+        "running_count": len(running),
+        "ready_count": len(ready),
+        "todo_count": len(todo),
+        "next_focus": (next_item or {}).get("title") or "先把世界看板 2.0 的真实数据接进来",
+        "next_owner": (next_item or {}).get("owner_short") or "",
+    }
+    decisions = []
+    for item in (team_decisions or [])[-4:]:
+        if not isinstance(item, dict):
+            continue
+        text = compact_task_text(item.get("text"), 160)
+        if not text:
+            continue
+        decisions.append({
+            "text": text,
+            "owner": item.get("owner") or item.get("agent") or "团队",
+            "created": item.get("created") or item.get("created_at"),
+        })
+    followups = []
+    for item in (stale_reviews or [])[-4:]:
+        if not isinstance(item, dict):
+            continue
+        followups.append({
+            "title": compact_task_text(item.get("title"), 80) or "待复盘任务",
+            "status": item.get("status") or "待复盘",
+            "reviewed_at": item.get("reviewed_at"),
+        })
+    return {
+        "summary": summary,
+        "blocked_tasks": blocked,
+        "team_decisions": decisions,
+        "followups": followups,
+    }
+
+
 def remember_boss_message(message, company_state):
     text = str(message or "").strip()
     if not text:
@@ -1122,6 +1170,7 @@ def create_project_execution_task(board_slug, owner_message, company_state, grou
 直达执行规则：
 - 这是老板明确安排的真实项目改动，收到后立刻行动。不要等待群聊讨论完成，也不要把聊天回复当成前置依赖。
 - 先改真实文件，做完再汇报；做得好不好后续再验收，但不能停留在“收到/我去看看/讨论一下”。
+- 不要使用“今晚做”“明天交”“我先研究一下”“回头看”等拖延型表述。能做的现在就做，做完直接带结果回来。
 - 你是{profile_info['name']}。如果你在群里承诺“我来/我立马去做”，就必须真的推进，不要只聊天。
 - 工作目录：{ROOT}
 - 优先检查并修改相关文件，例如 index.html、server.py、amazon-stealth-extension/*、company_state.json。
@@ -1971,6 +2020,8 @@ def fast_state():
         text = "老板，项目已交付，私聊里有验收说明。" if notice.get("notice") == "delivery" else "老板，这个任务卡住了，需要你拍板。"
         team_feed.append({"agent": notice.get("agent", "default"), "text": text, "created": notice.get("created")})
     project_tasks = visible_project_task_items(tasks)
+    team_decisions = visible_team_decisions(company_state.get("team_decisions") or [])
+    stale_reviews = visible_stale_project_reviews(company_state.get("stale_project_reviews") or [], tasks)
     return {
         "board": active, "agents": agents, "messages": sorted(messages, key=lambda item: item.get("created") or 0),
         "team_feed": team_feed, "world": world, "time": int(time.time()),
@@ -1990,10 +2041,11 @@ def fast_state():
             "universe_events": (company_state.get("universe_events") or [])[-12:],
             "universe_ideas": (company_state.get("universe_ideas") or [])[-12:],
             "universe_tasks": (company_state.get("universe_tasks") or [])[-12:],
-            "team_decisions": visible_team_decisions(company_state.get("team_decisions") or []),
-            "stale_project_reviews": visible_stale_project_reviews(company_state.get("stale_project_reviews") or [], tasks),
+            "team_decisions": team_decisions,
+            "stale_project_reviews": stale_reviews,
             "project_tasks": project_tasks,
             "strategy_documents": strategy_documents_payload(),
+            "boss_panel": boss_panel_payload(active, project_tasks, team_decisions, stale_reviews),
         },
     }
 
@@ -2221,8 +2273,11 @@ def group_task_body(group_id, round_no, profile, owner_message, transcript, comp
     history = transcript or ("老板刚刚发起话题，群里还没人说话。" if origin == "boss" else f"{initiator_info['short']}刚在群里起了个话头，大家还没接话。")
     social = social_brief(company_state, profile)
     memory = company_memory_brief(company_state)
+    is_project = bool(origin == "boss" and is_project_execution_request(owner_message))
     if origin == "internal" and round_no == 1 and profile == initiator:
         ending = "这轮你是先开口的人。别解释背景，直接像在公司群里顺手抛一句能引人接话的人话。"
+    elif is_project:
+        ending = "这是明确项目指令。你可以像同事一样说话，但别拿“今晚/明天/我先看看”拖时间；要么直接说你现在在推进哪一步，要么补一条真正阻塞执行的问题。"
     elif final_round:
         ending = "这是自然收尾轮。优先补一句态度、追问、吐槽或接梗来把群聊接住；只有真的完全没新内容时才输出 [SILENT]。不要解释为什么沉默。"
     else:
@@ -2253,6 +2308,7 @@ def group_task_body(group_id, round_no, profile, owner_message, transcript, comp
 - 禁止出现这些字样：任务完成、群聊回复完成、以自然口语化方式、保持沉默是合理的、作为某某补充说明。
 - 不知道就问，不确定就明确说不确定；不得虚构文件、测试、进度或联网结果。
 - 如果老板是在安排真实项目改动，必须把它当成公司任务：小韩拆解，阿默落地文件，小研检查风险，小文检查体验。不要只口嗨。
+- 如果这是明确项目指令，不要说“今晚做”“明天交”“我先看看”“回头处理”这类拖延句；直接体现正在执行，或明确说卡在哪个必须拍板的点。
 - 普通闲聊不要制造任务；真实项目指令必须推动执行任务。
 - 最终完成摘要也必须只包含这些 [CHAT] 行，不能附加解释。
 """
@@ -2522,6 +2578,8 @@ def get_state():
         team_feed.append({"agent": notice.get("agent", "default"), "text": text, "created": notice.get("created")})
     messages.sort(key=lambda item: item.get("created") or 0)
     project_tasks = visible_project_task_items(tasks)
+    team_decisions = visible_team_decisions(company_state.get("team_decisions") or [])
+    stale_reviews = visible_stale_project_reviews(company_state.get("stale_project_reviews") or [], tasks)
     return {
         "board": active, "agents": agents, "messages": messages, "team_feed": team_feed,
         "world": world, "time": int(time.time()),
@@ -2541,10 +2599,11 @@ def get_state():
             "universe_events": (company_state.get("universe_events") or [])[-12:],
             "universe_ideas": (company_state.get("universe_ideas") or [])[-12:],
             "universe_tasks": (company_state.get("universe_tasks") or [])[-12:],
-            "team_decisions": visible_team_decisions(company_state.get("team_decisions") or []),
-            "stale_project_reviews": visible_stale_project_reviews(company_state.get("stale_project_reviews") or [], tasks),
+            "team_decisions": team_decisions,
+            "stale_project_reviews": stale_reviews,
             "project_tasks": project_tasks,
             "strategy_documents": strategy_documents_payload(),
+            "boss_panel": boss_panel_payload(active, project_tasks, team_decisions, stale_reviews),
         },
     }
 
@@ -2882,12 +2941,19 @@ class Handler(SimpleHTTPRequestHandler):
             deposit_chat_to_universe(display_message, company_state, "boss", "老板", create_task=True, board_slug=board)
             if mode == "private":
                 title = f"[老板私聊] {PROFILES[agent]['name']}：{display_message[:42]}"
+                immediate_rule = (
+                    "这是明确项目指令时，回复里不要用“今晚做”“明天交”“我先看看”这类拖延句；"
+                    "虚拟员工默认立刻执行，只有真阻塞才允许提问。"
+                    if is_project_execution_request(message)
+                    else "普通私聊可以像同事一样自然接话、吐槽和追问。"
+                )
                 body = (
                     f"老板说：{display_message}\n\n{attachments_line(attachments).strip()}\n\n你的身份是{PROFILES[agent]['name']}，人格特点：{PROFILES[agent]['personality']}。"
                     f"{social_brief(company_state, agent)}。"
                     f"\n{company_memory_brief(company_state)}\n{attachment_brief(attachments)}\n"
                     "保持自己的观点和自然中文语气，像公司里一个活人，不像任务机器人。"
                     "允许有情绪、有偏好、有不耐烦，也允许轻微吐槽老板，但别失控。"
+                    f"{immediate_rule}"
                     "结合当前项目真实文件与任务证据回答。老板安排真实项目改动时，必须推动执行任务，不要只聊天。需要团队协作时创建明确子任务。"
                     "完成时直接给老板可读的回复，不要只说收到，也不要虚构进展。"
                 )

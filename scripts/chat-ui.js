@@ -335,7 +335,7 @@ function renderMobileContacts() {
 }
 function renderMobileCompany() {
   var _a2, _b2, _c2, _d2, _e2, _f2;
-  const company = (state == null ? void 0 : state.company) || {}, notices = ((_a2 = company.pending_notices) == null ? void 0 : _a2.length) ? company.pending_notices : [], roles = ((_b2 = company.open_roles) == null ? void 0 : _b2.length) ? company.open_roles : [], relations = ((state == null ? void 0 : state.agents) || []).map((agent) => `${agent.short || agent.name}：${agent.relationship_summary || "暂无关系备注"}`), tasks = (company.project_tasks || []).slice(), strategyDocs = (company.strategy_documents || []).slice();
+  const company = (state == null ? void 0 : state.company) || {}, notices = ((_a2 = company.pending_notices) == null ? void 0 : _a2.length) ? company.pending_notices : [], roles = ((_b2 = company.open_roles) == null ? void 0 : _b2.length) ? company.open_roles : [], relations = ((state == null ? void 0 : state.agents) || []).map((agent) => `${agent.short || agent.name}：${agent.relationship_summary || "暂无关系备注"}`), tasks = (company.project_tasks || []).slice(), strategyDocs = (company.strategy_documents || []).slice(), bossPanel = company.boss_panel || {}, bossSummary = bossPanel.summary || {}, blockedTasks = (bossPanel.blocked_tasks || []).slice(), teamDecisions = (bossPanel.team_decisions || []).slice(), followups = (bossPanel.followups || []).slice();
   document.querySelector("#mobileWorldLabel").textContent = ((_c2 = state == null ? void 0 : state.world) == null ? void 0 : _c2.label) || "读取中";
   document.querySelector("#mobileWeatherChip").textContent = ((_d2 = state == null ? void 0 : state.world) == null ? void 0 : _d2.weather) || "天气";
   setBadgeCount(document.querySelector("#mobileCompanyBadge"), companyPendingCount());
@@ -344,6 +344,18 @@ function renderMobileCompany() {
   document.querySelector("#mobileRelations").innerHTML = relations.map((item) => `<li>${esc(item)}</li>`).join("");
   document.querySelector("#mobileStrategySummary").textContent = strategyDocs.length ? "下面是已经进入 Hermes 世界视图的老板规则与宇宙蓝图。它们现在会约束员工如何巡检、研究、沉淀和汇报。" : "老板规则和宇宙蓝图还没有同步进世界视图。";
   document.querySelector("#mobileStrategyBoard").innerHTML = strategyDocs.map((doc) => `<article class="mobile-strategy-item"><strong>${esc(doc.title || "未命名文档")}</strong><p>${esc(doc.summary || "暂无摘要")}</p><div class="mobile-strategy-focus">关注点：${esc(doc.focus || "待补充")} · 文档：${esc(doc.path || "-")}</div></article>`).join("") || '<div class="mobile-section-title">暂无老板规则卡片</div>';
+  document.querySelector("#mobileBossSummary").textContent = bossSummary.project_name ? `当前主线是「${bossSummary.project_name}」，活跃任务 ${bossSummary.total_tasks || 0} 条，阻塞 ${bossSummary.blocked_count || 0} 条。下一步优先盯 ${bossSummary.next_owner ? `${bossSummary.next_owner} 的「${bossSummary.next_focus || "待推进任务"}」` : bossSummary.next_focus || "当前推进项"}。` : "推进雷达还没有拿到足够的项目数据。";
+  const bossCards = [];
+  blockedTasks.forEach((task) => {
+    bossCards.push(`<article class="mobile-boss-card blocked mobile-kanban-item blocked" data-open-task="${esc(task.id)}"><strong>待拍板：${esc(task.title || "未命名任务")}</strong><p>${esc(task.summary || task.blocked_reason || "点开后查看详情，并直接去私聊处理。")}</p><div class="mobile-boss-line">${esc(task.owner_short || task.owner_name || "员工")} · ${esc(taskStatusLabel(task.status))}</div></article>`);
+  });
+  teamDecisions.forEach((item) => {
+    bossCards.push(`<article class="mobile-boss-card"><strong>最近决策</strong><p>${esc(item.text || "暂无决策摘要")}</p><div class="mobile-boss-line">${esc(item.owner || "团队")} · ${esc(msgTime(item.created, true) || "刚刚")}</div></article>`);
+  });
+  followups.forEach((item) => {
+    bossCards.push(`<article class="mobile-boss-card"><strong>待复盘</strong><p>${esc(item.title || "待复盘任务")}</p><div class="mobile-boss-line">${esc(taskStatusLabel(item.status) || item.status || "待复盘")} · ${esc(msgTime(item.reviewed_at, true) || "近期")}</div></article>`);
+  });
+  document.querySelector("#mobileBossBoard").innerHTML = bossCards.length ? `<div class="mobile-boss-grid">${bossCards.join("")}</div>` : '<div class="mobile-section-title">暂无待关注推进项</div>';
   const summary = document.querySelector("#mobileTaskSummary"), board = document.querySelector("#mobileTaskBoard");
   if (!tasks.length) {
     summary.textContent = "当前没有未完成任务，员工们手头是清空状态。";
@@ -1032,6 +1044,11 @@ document.querySelector("#mobileContactsList").addEventListener("click", (e) => {
   item.dataset.openThread === "group" ? openMobileChatGroup(item.dataset.conversation || "team") : openMobileChatPrivate(item.dataset.agent);
 });
 document.querySelector("#mobileTaskBoard").addEventListener("click", (e) => {
+  const card = e.target.closest("[data-open-task]");
+  if (!card) return;
+  openMobileTaskDetail(card.dataset.openTask);
+});
+document.querySelector("#mobileBossBoard").addEventListener("click", (e) => {
   const card = e.target.closest("[data-open-task]");
   if (!card) return;
   openMobileTaskDetail(card.dataset.openTask);
