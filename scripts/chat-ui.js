@@ -212,6 +212,7 @@ function pixelUniverseIntentForText(text) {
       label: "游戏点子已捕获：摸鱼追逐 Boss 战 · 任务/讨论/宇宙预览生成中",
       taskTitle: "Prototype: 摸鱼追逐 Boss 战",
       summary: "先做追逐、甩锅道具、追上后进入需求评审 Boss 战的可玩原型。",
+      next_step: "下一步：小韩拆三段玩法，阿默验证 30 秒原型。",
       universeTitle: "Coming Soon: 摸鱼追逐 Boss 战",
       origin: "老板追摸鱼员工、员工甩锅、追上后切入需求评审 Boss 战。",
       officeTip: "开发中：摸鱼追逐 Boss 战原型已进入讨论",
@@ -229,6 +230,7 @@ function pixelUniverseIntentForText(text) {
     label: `游戏点子已捕获：${seed} · 任务/讨论/宇宙预览生成中`,
     taskTitle: `Prototype: ${seed}`,
     summary: `把「${seed}」拆成 30 秒内能看懂的玩法、角色反馈和第一张任务卡。`,
+    next_step: "下一步：拆核心玩法，并验证 30 秒内是否看懂。",
     universeTitle: `Coming Soon: ${seed}`,
     origin: compactText(value, 90),
     officeTip: `开发中：${seed} 已进入讨论`,
@@ -267,6 +269,7 @@ function currentPixelUniverseDemoPreview(messages = (state == null ? void 0 : st
     universe: {
       title: intent.universeTitle,
       origin: intent.origin,
+      next_step: intent.next_step,
       owner: "planner",
       category: "gameplay",
       status: "coming-soon",
@@ -503,7 +506,7 @@ function renderMobileCompany() {
   document.querySelector("#mobileDeliverySummary").textContent = recentEvents.length ? `过去一小时左右共整理出 ${recentEvents.length} 条可见推进。这里优先看“世界刚刚动了什么”。` : "最近还没有整理出新的真实交付。";
   document.querySelector("#mobileDeliveryBoard").innerHTML = recentEvents.length ? `<div class="mobile-boss-grid">${recentEvents.map((event) => `<article class="mobile-delivery-card"><strong>${esc(shortLine(event.text || "最新交付", 80))}</strong><div class="mobile-delivery-line">${esc(relativeClockLabel(event.time))}</div></article>`).join("")}</div>` : '<div class="mobile-section-title">暂无最近交付</div>';
   const universeCards = [
-    ...universeTasks.map((item) => `<article class="mobile-universe-card ${esc(item.status || "candidate")}"><strong>${esc(item.title || "待落地宇宙任务")}</strong><p>${esc(shortLine(item.origin || "这条聊天已经进入待落地队列。", 90))}</p><div class="mobile-review-line">${esc((agentById(item.implementer || item.owner) || {}).short || item.owner || "团队")} · ${esc(universeCategoryLabel(item))} · ${esc(item.status || "candidate")}${item.source_note ? ` · ${esc(item.source_note)}` : ""}</div></article>`),
+    ...universeTasks.map((item) => `<article class="mobile-universe-card ${esc(item.status || "candidate")}"><strong>${esc(item.title || "待落地宇宙任务")}</strong><p>${esc(shortLine(item.origin || "这条聊天已经进入待落地队列。", 90))}</p>${item.next_step ? `<p>${esc(shortLine(item.next_step, 78))}</p>` : ""}<div class="mobile-review-line">${esc((agentById(item.implementer || item.owner) || {}).short || item.owner || "团队")} · ${esc(universeCategoryLabel(item))} · ${esc(item.status || "candidate")}${item.source_note ? ` · ${esc(item.source_note)}` : ""}</div></article>`),
     ...universeIdeas.map((item) => `<article class="mobile-universe-card idea"><strong>${esc(item.title || "宇宙想法")}</strong><p>${esc(shortLine(item.origin || "这条聊天已经被识别为世界想法。", 90))}</p><div class="mobile-review-line">${esc(item.source === "boss" ? "老板" : "员工")} · ${esc(universeCategoryLabel(item))} · 想法</div></article>`),
     ...universeEvents.map((item) => `<article class="mobile-universe-card"><strong>${esc(shortLine(item.text || "宇宙事件", 78))}</strong><p>${esc(`${item.speaker || "团队"} 留下了一条可沉淀的世界记录。`)}</p><div class="mobile-review-line">${esc(relativeClockLabel(item.time))} · ${esc(universeCategoryLabel(item))}</div></article>`)
   ].slice(0, 8);
