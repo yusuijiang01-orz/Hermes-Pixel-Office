@@ -109,3 +109,13 @@ Week: 2026-07-01 to 2026-07-05
 - Version bump: completed from v1.27 to v1.28.
 - GitHub status: pending commit and push for this hourly run.
 - Next suggested step: run the documented browser smoke script with the canonical prompt and one non-canonical game idea to check the 30-second first-user path visually.
+
+### 02:04 +08:00 Hourly Loop
+
+- Chosen task: made the game-idea intent badge explain the visible first-loop outputs from today's chat stability and intent capture focus.
+- Files changed: `scripts/chat-ui.js`, `index.html`, `docs/pixel-universe-weekly-progress-2026-07-01.md`.
+- Behavior changed: recognized boss game-idea messages now say that a task, discussion, and universe preview are being generated, so the first 30 seconds better connect the chat input to the visible loop.
+- Verification: ran `node --check scripts\chat-ui.js`; confirmed `index.html` contains matching desktop/mobile/window version strings for v1.29 and `chat-ui.js?v=split-20260629g-intent3`; reviewed the scoped diff.
+- Version bump: completed from v1.28 to v1.29.
+- GitHub status: pending commit and push for this hourly run.
+- Next suggested step: run the browser smoke script with the canonical prompt and inspect whether the badge plus generated cards are understandable without explanation.
