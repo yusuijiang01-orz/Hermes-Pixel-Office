@@ -137,5 +137,5 @@ Week: 2026-07-01 to 2026-07-05
 - Behavior changed: recognized group-chat game ideas now add a `source_note` to the generated task, and the mobile task detail sheet shows `来自群聊游戏点子` in the task meta tags.
 - Verification: ran `node --check scripts\chat-ui.js`; confirmed `index.html` contains matching desktop/mobile/window version strings for v1.31 and `chat-ui.js?v=split-20260629g-intent5`; ran `git diff --check -- scripts\chat-ui.js index.html`.
 - Version bump: completed from v1.30 to v1.31.
-- GitHub status: pending commit and push for this hourly run.
+- GitHub status: committed and pushed `3eaf107` to `origin/main` as `推进像素宇宙 v1.31`.
 - Next suggested step: browser-smoke the canonical prompt and tap the generated mobile task card to confirm the source tag is visible in the detail sheet.
