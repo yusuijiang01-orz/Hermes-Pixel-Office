@@ -216,7 +216,8 @@ function pixelUniverseIntentForText(text) {
       origin: "老板追摸鱼员工、员工甩锅、追上后切入需求评审 Boss 战。",
       officeTip: "开发中：摸鱼追逐 Boss 战原型已进入讨论",
       talkA: "我把这个当成追逐喜剧原型：员工边跑边甩锅，老板追上就切需求评审 Boss 战。",
-      talkB: "任务卡先排上，我会把追逐节奏、甩锅道具和评审阶段拆成三段验证。"
+      talkB: "任务卡先排上，我会把追逐节奏、甩锅道具和评审阶段拆成三段验证。",
+      report: "进度播报：已生成「Prototype: 摸鱼追逐 Boss 战」候选任务，小韩拆玩法，阿默做 30 秒原型验证，宇宙沉淀已放入 Coming Soon。"
     };
   }
   const hasPlayAction = /(追|跑|跳|打|躲|收集|解谜|闯关|战斗|探索|变成|扮演|驾驶|建造|逃|抓|shoot|jump|run|fight|battle|collect|build|escape)/i.test(value);
@@ -232,7 +233,8 @@ function pixelUniverseIntentForText(text) {
     origin: compactText(value, 90),
     officeTip: `开发中：${seed} 已进入讨论`,
     talkA: `我先把「${seed}」当成游戏点子候选，提炼核心玩法和第一眼笑点。`,
-    talkB: "任务卡先排上，下一步验证它能不能在 30 秒内让新用户看懂。"
+    talkB: "任务卡先排上，下一步验证它能不能在 30 秒内让新用户看懂。",
+    report: `进度播报：已生成「Prototype: ${seed}」候选任务，小韩拆玩法，阿默准备 30 秒原型验证，宇宙沉淀已放入 Coming Soon。`
   };
 }
 function isPixelUniverseDemoPitch(text) {
@@ -294,7 +296,7 @@ function currentPixelUniverseDemoPreview(messages = (state == null ? void 0 : st
         mode: "group",
         origin: "internal",
         conversation: "team",
-        prompt: `进度播报：已生成「${intent.taskTitle}」候选任务，并放入宇宙沉淀的 Coming Soon。`,
+        prompt: intent.report || `进度播报：已生成「${intent.taskTitle}」候选任务，并放入宇宙沉淀的 Coming Soon。`,
         name: "进度播报",
         created: created + 6,
         round: 4
