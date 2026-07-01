@@ -99,3 +99,13 @@ Week: 2026-07-01 to 2026-07-05
 - Version bump: blocked. `index.html` still has pre-existing unrelated dirty/minified content and remains at v1.25, so a safe v1.26-only stage is not available in this run.
 - GitHub status: not committed or pushed because staging the already-dirty progress log would include prior uncommitted hourly notes, and the required version bump remains blocked.
 - Next suggested step: isolate or accept the existing dirty progress/index changes, then implement the `scripts/chat-ui.js` intent label helper and run this smoke script.
+
+### 01:29 +08:00 Hourly Loop
+
+- Chosen task: generalized the frontend-only Pixel Universe game-idea intent capture from today's chat stability and intent capture focus.
+- Files changed: `scripts/chat-ui.js`, `index.html`, `docs/pixel-universe-weekly-progress-2026-07-01.md`.
+- Behavior changed: boss group-chat prompts with obvious play-action plus game-output signals now get a visible game-idea badge, derived temporary employee discussion, a task candidate, and a Coming Soon universe card; the temporary preview no longer appears when no matching boss game idea exists.
+- Verification: ran `node --check scripts\chat-ui.js`, confirmed `index.html` contains matching desktop/mobile/window version strings for v1.28 and `chat-ui.js?v=split-20260629g-intent2`, and ran `git diff --check` on the touched files.
+- Version bump: completed from v1.27 to v1.28.
+- GitHub status: pending commit and push for this hourly run.
+- Next suggested step: run the documented browser smoke script with the canonical prompt and one non-canonical game idea to check the 30-second first-user path visually.

@@ -204,22 +204,57 @@ function taskFollowupDraft(task) {
   const title = (task == null ? void 0 : task.title) || "这条任务";
   return (task == null ? void 0 : task.status) === "blocked" ? `关于「${title}」，你现在具体卡在哪一步？把阻塞点、需要我拍板的选项、你建议的方案直接告诉我。` : `关于「${title}」，麻烦你把当前进度、下一步，以及我需要配合的地方直接告诉我。`;
 }
-function isPixelUniverseDemoPitch(text) {
+function pixelUniverseIntentForText(text) {
   const value = cleanSpeechText(text || "");
-  return ["老板", "摸鱼", "员工", "甩锅"].every((word) => value.includes(word)) && /Boss|boss|战/.test(value);
+  if (!value) return null;
+  if (["老板", "摸鱼", "员工", "甩锅"].every((word) => value.includes(word)) && /Boss|boss|战/.test(value)) {
+    return {
+      label: "识别为游戏点子 · 摸鱼追逐 Boss 战",
+      taskTitle: "Prototype: 摸鱼追逐 Boss 战",
+      summary: "先做追逐、甩锅道具、追上后进入需求评审 Boss 战的可玩原型。",
+      universeTitle: "Coming Soon: 摸鱼追逐 Boss 战",
+      origin: "老板追摸鱼员工、员工甩锅、追上后切入需求评审 Boss 战。",
+      officeTip: "开发中：摸鱼追逐 Boss 战原型已进入讨论",
+      talkA: "我把这个当成追逐喜剧原型：员工边跑边甩锅，老板追上就切需求评审 Boss 战。",
+      talkB: "任务卡先排上，我会把追逐节奏、甩锅道具和评审阶段拆成三段验证。"
+    };
+  }
+  const hasPlayAction = /(追|跑|跳|打|躲|收集|解谜|闯关|战斗|探索|变成|扮演|驾驶|建造|逃|抓|shoot|jump|run|fight|battle|collect|build|escape)/i.test(value);
+  const hasGameOutput = /(游戏|小游戏|关卡|Boss|boss|战|原型|玩法|副本|地图|game|minigame|level|prototype)/i.test(value);
+  const hasMemeOrEmotion = /(摸鱼|甩锅|加班|离谱|爆笑|崩溃|焦虑|热血|治愈|meme|梗)/i.test(value);
+  if (!(hasPlayAction && hasGameOutput) && !(hasMemeOrEmotion && hasGameOutput)) return null;
+  const seed = compactText(value, 18).replace(/[。！？!?，,]+$/g, "") || "新游戏点子";
+  return {
+    label: "识别为游戏点子 · 已进入原型候选",
+    taskTitle: `Prototype: ${seed}`,
+    summary: `把「${seed}」拆成 30 秒内能看懂的玩法、角色反馈和第一张任务卡。`,
+    universeTitle: `Coming Soon: ${seed}`,
+    origin: compactText(value, 90),
+    officeTip: `开发中：${seed} 已进入讨论`,
+    talkA: `我先把「${seed}」当成游戏点子候选，提炼核心玩法和第一眼笑点。`,
+    talkB: "任务卡先排上，下一步验证它能不能在 30 秒内让新用户看懂。"
+  };
+}
+function isPixelUniverseDemoPitch(text) {
+  const intent = pixelUniverseIntentForText(text);
+  return !!intent && intent.taskTitle === "Prototype: 摸鱼追逐 Boss 战";
 }
 function renderGameIdeaIntentBadge(message) {
-  if (!message || message.mode !== "group" || message.origin !== "boss" || !isPixelUniverseDemoPitch(message.prompt)) return "";
-  return '<div class="game-idea-intent">识别为游戏点子 · 摸鱼追逐 Boss 战</div>';
+  if (!message || message.mode !== "group" || message.origin !== "boss") return "";
+  const intent = pixelUniverseIntentForText(message.prompt);
+  return intent ? `<div class="game-idea-intent">${esc(intent.label)}</div>` : "";
 }
 function currentPixelUniverseDemoPreview(messages = (state == null ? void 0 : state.messages) || []) {
-  const anchor = (messages || []).slice().sort((a, b) => (b.created || 0) - (a.created || 0)).find((msg) => (msg == null ? void 0 : msg.mode) === "group" && (msg == null ? void 0 : msg.origin) === "boss" && isPixelUniverseDemoPitch(msg.prompt));
+  const anchor = (messages || []).slice().sort((a, b) => (b.created || 0) - (a.created || 0)).find((msg) => (msg == null ? void 0 : msg.mode) === "group" && (msg == null ? void 0 : msg.origin) === "boss" && pixelUniverseIntentForText(msg.prompt));
+  const intent = pixelUniverseIntentForText(anchor == null ? void 0 : anchor.prompt);
+  if (!anchor || !intent) return null;
   const idBase = String((anchor == null ? void 0 : anchor.id) || (anchor == null ? void 0 : anchor.created) || "seed").replace(/[^\w-]/g, "-"), created = Number((anchor == null ? void 0 : anchor.created) || 1782921600);
   return {
+    officeTip: intent.officeTip,
     task: {
       id: `pixel-universe-demo-task-${idBase}`,
-      title: "Prototype: 摸鱼追逐 Boss 战",
-      summary: "先做追逐、甩锅道具、追上后进入需求评审 Boss 战的可玩原型。",
+      title: intent.taskTitle,
+      summary: intent.summary,
       assignee: "planner",
       owner_short: "小韩",
       kind: "collab",
@@ -227,8 +262,8 @@ function currentPixelUniverseDemoPreview(messages = (state == null ? void 0 : st
       created
     },
     universe: {
-      title: "Coming Soon: 摸鱼追逐 Boss 战",
-      origin: "老板追摸鱼员工、员工甩锅、追上后切入需求评审 Boss 战。",
+      title: intent.universeTitle,
+      origin: intent.origin,
       owner: "planner",
       category: "gameplay",
       status: "coming-soon"
@@ -239,7 +274,7 @@ function currentPixelUniverseDemoPreview(messages = (state == null ? void 0 : st
         mode: "group",
         origin: "internal",
         conversation: "team",
-        prompt: "我把这个当成追逐喜剧原型：员工边跑边甩锅，老板追上就切需求评审 Boss 战。",
+        prompt: intent.talkA,
         name: "策划主编 小韩",
         created: created + 2,
         round: 2
@@ -249,7 +284,7 @@ function currentPixelUniverseDemoPreview(messages = (state == null ? void 0 : st
         mode: "group",
         origin: "internal",
         conversation: "team",
-        prompt: "任务卡先排上，我会把追逐节奏、甩锅道具和评审阶段拆成三段验证。",
+        prompt: intent.talkB,
         name: "程序 阿默",
         created: created + 4,
         round: 3
@@ -259,7 +294,7 @@ function currentPixelUniverseDemoPreview(messages = (state == null ? void 0 : st
         mode: "group",
         origin: "internal",
         conversation: "team",
-        prompt: "进度播报：已生成「Prototype: 摸鱼追逐 Boss 战」候选任务，并放入宇宙沉淀的 Coming Soon。",
+        prompt: `进度播报：已生成「${intent.taskTitle}」候选任务，并放入宇宙沉淀的 Coming Soon。`,
         name: "进度播报",
         created: created + 6,
         round: 4
@@ -269,7 +304,7 @@ function currentPixelUniverseDemoPreview(messages = (state == null ? void 0 : st
 }
 function applyPixelUniverseDemoOfficeTip(preview) {
   const tip = document.querySelector("#sceneTip");
-  if (tip && preview && !tip.textContent.includes("摸鱼追逐")) tip.textContent = "开发中：摸鱼追逐 Boss 战原型已进入讨论";
+  if (tip && preview && preview.officeTip && tip.textContent !== preview.officeTip) tip.textContent = preview.officeTip;
 }
 function focusChatInput(kind, text = "") {
   const input = inputFor(kind);
