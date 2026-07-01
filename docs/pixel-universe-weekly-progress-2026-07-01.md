@@ -47,5 +47,5 @@ Week: 2026-07-01 to 2026-07-05
 - Behavior changed: no runtime behavior changed; this narrows the next frontend helper to game idea, meme premise, and emotional beat recognition without touching persistence.
 - Verification: documentation-only change; reviewed required docs, checked `git status --short`, and avoided editing dirty frontend/backend/state files.
 - Version bump: blocked. `index.html` already had unrelated pre-existing one-line/minified dirty edits before this run, so a scoped version-only stage cannot be made without also staging unrelated prior changes. Current visible version remains v1.25.
-- GitHub status: pending scoped commit/push for this documentation update only; version bump is intentionally not staged because of the blocker above.
+- GitHub status: committed and pushed documentation update to `origin/main` as `a97fc9d`; version bump was intentionally not staged because of the blocker above.
 - Next suggested step: add the documented single frontend helper in `scripts/chat-ui.js` only after deciding how to isolate or commit the existing dirty frontend changes.
