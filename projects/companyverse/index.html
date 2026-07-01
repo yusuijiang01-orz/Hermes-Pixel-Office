@@ -100,6 +100,7 @@ let koiState={playerX:0,playerY:0,koi:[],score:0,active:false};
 function resetStreetSpawn(){const w=canvas.clientWidth,h=canvas.clientHeight;if(mode==='street'){px=w<700?w*.50:w*.40;py=w<700?Math.max(430,h*.68):Math.max(330,h*.56)}}
 function resize(){const d=1,r=canvas.getBoundingClientRect();canvas.width=Math.max(1,Math.round(r.width*d));canvas.height=Math.max(1,Math.round(r.height*d));ctx.setTransform(d,0,0,d,0,0);streetCache=null;streetCacheKey='';if(!px&&!py)resetStreetSpawn()}
 addEventListener('resize',resize);resize();
+function appUrl(path){return location.protocol==='file:'?`http://127.0.0.1:8777${path}`:path}
 
 function rect(x,y,w,h,c){ctx.fillStyle=c;ctx.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h))}
 function text(s,x,y,size=12,c='#253238',align='left'){ctx.fillStyle=c;ctx.font=`900 ${size}px Microsoft YaHei`;ctx.textAlign=align;ctx.fillText(s,x,y);ctx.textAlign='left'}
@@ -523,13 +524,17 @@ function drawStreet(t,w,h){
   for(let x=w*.33;x<w*.68;x+=62)rect(x,roadY+54,30,4,'#e7d2a1');
 
   const gates=narrow?[
-    {name:'蘑菇跑酷',sub:'',x:w*.20,y:gateY,color:'#c85d4b',key:'mushroom'},
-    {name:'柯基鱼',sub:'',x:w*.50,y:gateY,color:'#d99a4e',key:'corgi'},
-    {name:'锦鲤',sub:'',x:w*.80,y:gateY,color:'#6aa6a5',key:'koi'}
+    {name:'蘑菇跑酷',sub:'',x:w*.10,y:gateY,color:'#c85d4b',key:'mushroom'},
+    {name:'地下城',sub:'',x:w*.30,y:gateY,color:'#6f5aa8',key:'dungeon'},
+    {name:'摸鱼追逐',sub:'',x:w*.50,y:gateY,color:'#e7b34d',key:'boss_chase'},
+    {name:'柯基鱼',sub:'',x:w*.70,y:gateY,color:'#d99a4e',key:'corgi'},
+    {name:'锦鲤',sub:'',x:w*.90,y:gateY,color:'#6aa6a5',key:'koi'}
   ]:[
-    {name:'Mushroom Runner',sub:'平台跑酷项目',x:w*.34,y:gateY,color:'#c85d4b',key:'mushroom'},
-    {name:'柯基追鱼',sub:'小文的办公室彩蛋',x:w*.55,y:gateY,color:'#d99a4e',key:'corgi'},
-    {name:'锦鲤保佑',sub:'鱼缸衍生小游戏',x:w*.76,y:gateY,color:'#6aa6a5',key:'koi'}
+    {name:'Mushroom Runner',sub:'平台跑酷项目',x:w*.18,y:gateY,color:'#c85d4b',key:'mushroom'},
+    {name:'地下城勇士',sub:'DNF-like 可玩原型',x:w*.34,y:gateY,color:'#6f5aa8',key:'dungeon'},
+    {name:'摸鱼追逐 Boss 战',sub:'Coming Soon 原型入口',x:w*.50,y:gateY,color:'#e7b34d',key:'boss_chase'},
+    {name:'柯基追鱼',sub:'小文的办公室彩蛋',x:w*.66,y:gateY,color:'#d99a4e',key:'corgi'},
+    {name:'锦鲤保佑',sub:'鱼缸衍生小游戏',x:w*.82,y:gateY,color:'#6aa6a5',key:'koi'}
   ];
   const gateW=narrow?86:156,gateH=narrow?82:116,innerW=narrow?70:136,screenW=narrow?58:112;
   gates.forEach((g,i)=>{
@@ -541,6 +546,8 @@ function drawStreet(t,w,h){
     rect(g.x-screenW*.38,g.y-gateH*.32+pulse,screenW*.76,Math.max(28,gateH-62),g.color);
     rect(g.x-screenW*.30,g.y-gateH*.24+pulse,screenW*.60,7,'#ffffff55');
     if(g.key==='mushroom'){rect(g.x-14,g.y-18+pulse,28,16,'#c85d4b');rect(g.x-20,g.y-10+pulse,40,9,'#f0c49b');rect(g.x-8,g.y-2+pulse,16,18,'#f7f4ea');rect(g.x-4,g.y+4+pulse,3,3,'#263238');rect(g.x+4,g.y+4+pulse,3,3,'#263238')}
+    if(g.key==='dungeon'){rect(g.x-18,g.y-24+pulse,36,26,'#2a2235');rect(g.x-13,g.y-19+pulse,26,18,'#6f5aa8');rect(g.x-10,g.y-15+pulse,6,6,'#f4c95d');rect(g.x+4,g.y-15+pulse,6,6,'#f4c95d');rect(g.x-3,g.y-2+pulse,6,16,'#c0c0c0');rect(g.x-7,g.y+3+pulse,14,3,'#808080')}
+    if(g.key==='boss_chase'){rect(g.x-22,g.y-20+pulse,16,28,'#314046');rect(g.x-18,g.y-28+pulse,8,8,'#f0c49b');rect(g.x+4,g.y-14+pulse,24,10,'#e45f42');rect(g.x+22,g.y-18+pulse,10,6,'#f7f4ea');rect(g.x-3,g.y+3+pulse,24,5,'#f0c85a')}
     if(g.key==='corgi'){drawCorgiSprite(t,g.x-(narrow?16:30),g.y-(narrow?24:40)+pulse,narrow?.16:.30,false,1,'bark');rect(g.x-26,g.y+8+pulse,14,8,'#6aa6a5')}
     if(g.key==='koi'){rect(g.x-18,g.y-14+pulse,32,15,'#e45f42');rect(g.x-25,g.y-9+pulse,8,8,'#e45f42');rect(g.x+7,g.y-17+pulse,8,5,'#f0c85a')}
     label(g.name,g.x,g.y+(narrow?48:61),narrow?54:96);
@@ -830,7 +837,12 @@ function act(){
     msgEl.textContent='回到游戏大厅。这里是小游戏入口，不是真正公司；按“公司”返回像素公司。';
   } else if(mode==='street'&&portal==='mushroom'){
     releaseMovement();
-    window.location.href='/projects/mushroom-runner/index.html';
+    window.location.href=appUrl('/projects/mushroom-runner/index.html');
+  } else if(mode==='street'&&portal==='dungeon'){
+    releaseMovement();
+    window.location.href=appUrl('/index.html?room=game');
+  } else if(mode==='street'&&portal==='boss_chase'){
+    msgEl.textContent='Coming Soon：摸鱼追逐 Boss 战已进入原型队列。员工会先做追逐、甩锅道具和需求评审 Boss 战。';
   } else if(mode==='street'&&portal==='corgi'){
     mode='corgi';initCorgiGame(canvas.clientWidth,canvas.clientHeight);
     msgEl.textContent='柯基追鱼：左摇杆控制柯基，按 〇 或 × 返回街区。';
@@ -877,7 +889,7 @@ function releaseMovement(){
 
 function goCompany(){
   releaseMovement();
-  window.location.href='/';
+  window.location.href=appUrl('/');
 }
 
 function safeBack(){
@@ -889,7 +901,7 @@ function safeBack(){
     mode='office';px=canvas.clientWidth-120;py=100;
     msgEl.textContent='已返回像素公司大厅。';
   }else{
-    window.location.href='/';
+    window.location.href=appUrl('/');
   }
 }
 

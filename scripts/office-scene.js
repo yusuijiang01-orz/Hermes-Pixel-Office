@@ -2,6 +2,11 @@ function frame(t) {
   var _a;
   const dt = Math.min((t - lastFrame) / 1e3 || 0, 0.1);
   lastFrame = t;
+  if (currentRoom === "game") {
+    const rect = canvas.getBoundingClientRect();
+    const d = Math.min(devicePixelRatio || 1, 2);
+    if (Math.round(canvas.width) !== Math.round(rect.width * d) || Math.round(canvas.height) !== Math.round(rect.height * d)) fit();
+  }
   const w2 = canvas.clientWidth, h2 = canvas.clientHeight;
   ctx.clearRect(0, 0, w2, h2);
   const everyoneHome = ((_a = state == null ? void 0 : state.world) == null ? void 0 : _a.phase) === "home" && Object.values(agents).every((a) => ["home", "home_remote"].includes(a.presence));
@@ -25,6 +30,8 @@ function frame(t) {
     ctx.textAlign = "left";
   } else if (currentRoom === "boss") {
     drawBossOffice(w2, h2, t);
+    // 显示boss退出按钮
+    document.getElementById("bossExit")?.classList.add("visible");
     ctx.textAlign = "center";
     ctx.fillStyle = "#8a9a9a";
     ctx.font = "12px Microsoft YaHei";
@@ -33,6 +40,10 @@ function frame(t) {
   } else {
     if (neighborhood) drawHomeInterior(w2, h2, t);
     else room(w2, h2, t);
+    // 离开boss场景时隐藏退出按钮
+    if (currentRoom !== "boss") {
+      document.getElementById("bossExit")?.classList.remove("visible");
+    }
   }
   if (editMode) drawSelectionBox(w2, h2, t);
   if (t > nextFeed && feedQueue.length) {
@@ -69,36 +80,14 @@ function frame(t) {
     updatePanel(agents[selected]);
     lastPanel = t;
   }
-  if (funMode && currentRoom === "office" && !neighborhood) {
-    if (t - funLastDialogue > 4e3) {
-      funLastDialogue = t;
-      const d = getFunnyDialogue();
-      if (funDialogueEl) {
-        funDialogueEl.innerHTML = `<span class="fun-speaker">${d.speaker}</span>${d.text}`;
-        funDialogueEl.classList.add("visible");
-        clearTimeout(funDialogueTimeout);
-        funDialogueTimeout = setTimeout(() => {
-          funDialogueEl.classList.remove("visible");
-        }, 4500);
-      }
-    }
-    const shakeEls = document.querySelectorAll(".scene-object");
-    shakeEls.forEach((el) => {
-      if (Math.random() < 0.03) {
-        el.style.transform = `rotate(${Math.sin(t * 0.01) * 15}deg)`;
-        setTimeout(() => {
-          el.style.transform = "";
-        }, 200);
-      }
-    });
-  }
-  ;
+  // funMode removed per boss requirement
   if (currentRoom === "office" && !neighborhood) reportWorldObjects(t, w2, h2);
   requestAnimationFrame(frame);
 }
 function startOfficeScene() {
   if (window.__hermesOfficeSceneStarted) return;
   window.__hermesOfficeSceneStarted = true;
+  updateRoomUI();
   requestAnimationFrame(frame);
 }
 if (window.HermesShared && window.HermesShared.ready.core) startOfficeScene();
@@ -281,20 +270,19 @@ document.querySelector("#sheetToggle").addEventListener("click", () => {
 // === Keyboard: dungeon game controls ===
 document.addEventListener("keydown", (e) => {
   if (currentRoom !== "game") return;
-  const p = DUNGEON.player;
   if (e.key === "Escape") {
     leaveRoom("esc");
     e.preventDefault();
     return;
   }
   if (e.key === "ArrowLeft" || e.key === "a") {
-    p.dir = -1;
-    p.x = Math.max(0, p.x - 2);
+    joystickDir.x = -1;
+    joystickDir.y = Math.sign(joystickDir.y) || 0;
     e.preventDefault();
   }
   if (e.key === "ArrowRight" || e.key === "d") {
-    p.dir = 1;
-    p.x = Math.min(960, p.x + 2);
+    joystickDir.x = 1;
+    joystickDir.y = Math.sign(joystickDir.y) || 0;
     e.preventDefault();
   }
   if (e.key === " " || e.key === "ArrowDown" || e.key === "s") {
@@ -304,6 +292,15 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "ArrowUp" || e.key === "w") {
     DUNGEON.jump();
     e.preventDefault();
+  }
+});
+document.addEventListener("keyup", (e) => {
+  if (currentRoom !== "game") return;
+  if (e.key === "ArrowLeft" || e.key === "a") {
+    if (joystickDir.x < 0) joystickDir.x = 0;
+  }
+  if (e.key === "ArrowRight" || e.key === "d") {
+    if (joystickDir.x > 0) joystickDir.x = 0;
   }
 });
 

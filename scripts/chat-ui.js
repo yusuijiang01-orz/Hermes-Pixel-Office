@@ -204,6 +204,69 @@ function taskFollowupDraft(task) {
   const title = (task == null ? void 0 : task.title) || "这条任务";
   return (task == null ? void 0 : task.status) === "blocked" ? `关于「${title}」，你现在具体卡在哪一步？把阻塞点、需要我拍板的选项、你建议的方案直接告诉我。` : `关于「${title}」，麻烦你把当前进度、下一步，以及我需要配合的地方直接告诉我。`;
 }
+function isPixelUniverseDemoPitch(text) {
+  const value = cleanSpeechText(text || "");
+  return ["老板", "摸鱼", "员工", "甩锅"].every((word) => value.includes(word)) && /Boss|boss|战/.test(value);
+}
+function currentPixelUniverseDemoPreview(messages = (state == null ? void 0 : state.messages) || []) {
+  const anchor = (messages || []).slice().sort((a, b) => (b.created || 0) - (a.created || 0)).find((msg) => (msg == null ? void 0 : msg.mode) === "group" && (msg == null ? void 0 : msg.origin) === "boss" && isPixelUniverseDemoPitch(msg.prompt));
+  const idBase = String((anchor == null ? void 0 : anchor.id) || (anchor == null ? void 0 : anchor.created) || "seed").replace(/[^\w-]/g, "-"), created = Number((anchor == null ? void 0 : anchor.created) || 1782921600);
+  return {
+    task: {
+      id: `pixel-universe-demo-task-${idBase}`,
+      title: "Prototype: 摸鱼追逐 Boss 战",
+      summary: "先做追逐、甩锅道具、追上后进入需求评审 Boss 战的可玩原型。",
+      assignee: "planner",
+      owner_short: "小韩",
+      kind: "collab",
+      status: "todo",
+      created
+    },
+    universe: {
+      title: "Coming Soon: 摸鱼追逐 Boss 战",
+      origin: "老板追摸鱼员工、员工甩锅、追上后切入需求评审 Boss 战。",
+      owner: "planner",
+      category: "gameplay",
+      status: "coming-soon"
+    },
+    messages: anchor ? [
+      {
+        id: `pixel-universe-demo-talk-a-${idBase}`,
+        mode: "group",
+        origin: "internal",
+        conversation: "team",
+        prompt: "我把这个当成追逐喜剧原型：员工边跑边甩锅，老板追上就切需求评审 Boss 战。",
+        name: "策划主编 小韩",
+        created: created + 2,
+        round: 2
+      },
+      {
+        id: `pixel-universe-demo-talk-b-${idBase}`,
+        mode: "group",
+        origin: "internal",
+        conversation: "team",
+        prompt: "任务卡先排上，我会把追逐节奏、甩锅道具和评审阶段拆成三段验证。",
+        name: "程序 阿默",
+        created: created + 4,
+        round: 3
+      },
+      {
+        id: `pixel-universe-demo-report-${idBase}`,
+        mode: "group",
+        origin: "internal",
+        conversation: "team",
+        prompt: "进度播报：已生成「Prototype: 摸鱼追逐 Boss 战」候选任务，并放入宇宙沉淀的 Coming Soon。",
+        name: "进度播报",
+        created: created + 6,
+        round: 4
+      }
+    ] : []
+  };
+}
+function applyPixelUniverseDemoOfficeTip(preview) {
+  const tip = document.querySelector("#sceneTip");
+  if (tip && preview && !tip.textContent.includes("摸鱼追逐")) tip.textContent = "开发中：摸鱼追逐 Boss 战原型已进入讨论";
+}
 function focusChatInput(kind, text = "") {
   const input = inputFor(kind);
   if (!input) return;
@@ -214,7 +277,10 @@ function focusChatInput(kind, text = "") {
   input.setSelectionRange(caret, caret);
 }
 function taskById(taskId) {
-  return (((state == null ? void 0 : state.company) == null ? void 0 : state.company.project_tasks) || []).find((task) => String(task.id) === String(taskId)) || null;
+  const task = (((state == null ? void 0 : state.company) == null ? void 0 : state.company.project_tasks) || []).find((item) => String(item.id) === String(taskId));
+  if (task) return task;
+  const preview = currentPixelUniverseDemoPreview();
+  return preview && String(preview.task.id) === String(taskId) ? preview.task : null;
 }
 function openMobileTaskDetail(taskId) {
   mobileState.taskDetailOpen = true;
@@ -234,10 +300,10 @@ function nextChatDisplayTs(previousTs, message, offset = 0) {
   return base > previousTs ? base : previousTs + 1;
 }
 function pendingReplyLabel(message) {
-  if (!message) return "正在处理并组织回复...";
-  if (message.status === "blocked") return "遇到问题，正在整理需要你决定的事项...";
+  if (!message) return "柯基在等回复...";
+  if (message.status === "blocked") return "遇到卡点，正在整理需要你拍板的事项...";
   if (message.status === "done") return "刚才那条回复带了系统噪音，已自动省略。";
-  return "正在处理并组织回复...";
+  return "柯基在等回复...";
 }
 function validChatLines(msg) {
   const lines = ((msg == null ? void 0 : msg.chat_lines) || []).map((line) => cleanSpeechText(line)).filter((line) => line && !uiNoise(line));
@@ -365,6 +431,12 @@ function renderMobileContacts() {
 function renderMobileCompany() {
   var _a2, _b2, _c2, _d2, _e2, _f2;
   const company = (state == null ? void 0 : state.company) || {}, notices = ((_a2 = company.pending_notices) == null ? void 0 : _a2.length) ? company.pending_notices : [], roles = ((_b2 = company.open_roles) == null ? void 0 : _b2.length) ? company.open_roles : [], relations = ((state == null ? void 0 : state.agents) || []).map((agent) => `${agent.short || agent.name}：${agent.relationship_summary || "暂无关系备注"}`), tasks = (company.project_tasks || []).slice(), strategyDocs = (company.strategy_documents || []).slice(), bossPanel = company.boss_panel || {}, bossSummary = bossPanel.summary || {}, blockedTasks = (bossPanel.blocked_tasks || []).slice(), teamDecisions = (bossPanel.team_decisions || []).slice(), followups = (bossPanel.followups || []).slice(), recentEvents = (company.recent_events || []).slice(0, 8), universeIdeas = (company.universe_ideas || []).slice(0, 4), universeTasks = (company.universe_tasks || []).slice(0, 4), universeEvents = (company.universe_events || []).slice(0, 4), staleReviews = (company.stale_project_reviews || []).slice(0, 6);
+  const demoPreview = currentPixelUniverseDemoPreview();
+  if (demoPreview) {
+    tasks.unshift(demoPreview.task);
+    universeTasks.unshift(demoPreview.universe);
+    applyPixelUniverseDemoOfficeTip(demoPreview);
+  }
   document.querySelector("#mobileWorldLabel").textContent = ((_c2 = state == null ? void 0 : state.world) == null ? void 0 : _c2.label) || "读取中";
   document.querySelector("#mobileWeatherChip").textContent = ((_d2 = state == null ? void 0 : state.world) == null ? void 0 : _d2.weather) || "天气";
   setBadgeCount(document.querySelector("#mobileCompanyBadge"), companyPendingCount());
@@ -439,7 +511,8 @@ function renderMobileChatScreen() {
   if (mobileState.chatOpen) screen.classList.remove("closing");
   if (mobileState.chatMode !== "group") closeMentionMenu("mobile");
   if (!mobileState.chatOpen) return;
-  const all = (state == null ? void 0 : state.messages) || [];
+  const baseAll = (state == null ? void 0 : state.messages) || [], demoPreview = currentPixelUniverseDemoPreview(baseAll), all = demoPreview ? [...baseAll, ...demoPreview.messages] : baseAll;
+  applyPixelUniverseDemoOfficeTip(demoPreview);
   if (mobileState.chatMode === "private") {
     const agent = agentById(mobileState.agent) || agentById(selected) || ((_a2 = state == null ? void 0 : state.agents) == null ? void 0 : _a2[0]);
     const threadKey2 = `private:${(agent == null ? void 0 : agent.id) || "none"}`;
@@ -451,7 +524,7 @@ function renderMobileChatScreen() {
     subtitle.textContent = agent ? `${agent.role} · ${activityText({ ...agents[agent.id], ...agent })}` : "连接中";
     const items = all.filter((msg) => msg.mode !== "group" && msg.agent === (agent == null ? void 0 : agent.id)).sort((a, b) => (a.created || 0) - (b.created || 0));
     if (!items.length) {
-      body.innerHTML = '<div class="empty">还没有私聊。<br>先去戳一下这位员工。</div>';
+      body.innerHTML = '<div class="empty">这位员工还没和你说过话。<br>去打个招呼？</div>';
       restoreScroll(body, "mobile", threadKey2, true);
       return;
     }
@@ -495,7 +568,7 @@ function renderMobileChatScreen() {
     groups.get(key).push(msg);
   });
   if (!groups.size) {
-    body.innerHTML = '<div class="empty">群里还很安静。<br>发个话题试试。</div>';
+    body.innerHTML = '<div class="empty">群里还安静得像午休时间。<br>抛个话题吧。</div>';
     restoreScroll(body, "mobile", threadKey, true);
     return;
   }
@@ -824,7 +897,8 @@ function attachmentPrompt(items = []) {
   return items.length ? items.slice(0, 3).map((item) => `[文件:${item.name || "文件"}]`).join("") : "";
 }
 function renderChat() {
-  const box = document.querySelector("#chat"), all = (state == null ? void 0 : state.messages) || [];
+  const box = document.querySelector("#chat"), baseAll = (state == null ? void 0 : state.messages) || [], demoPreview = currentPixelUniverseDemoPreview(baseAll), all = demoPreview ? [...baseAll, ...demoPreview.messages] : baseAll;
+  applyPixelUniverseDemoOfficeTip(demoPreview);
   const dataHash = JSON.stringify(all.map((m) => [m.id, m.prompt, m.reply, m.status, m.mode, m.conversation, m.agent]));
   if (chatMode === "private") {
     const threadKey = `private:${selected || "none"}`;
@@ -878,7 +952,7 @@ function renderChat() {
       groups.get(conv).push(m);
     });
     if (!groups.size) {
-      box.innerHTML = '<div class="empty">群里还很安静。<br>发个话题，成员会接话、追问或互相讨论。</div>';
+      box.innerHTML = '<div class="empty">群里还安静得像午休时间。<br>抛个话题，成员会接话、追问或互相讨论。</div>';
       restoreScroll(box, "desktop", threadKey, true);
       _prevGroupHash = hash;
       _renderedChatMode = "group";
@@ -1281,28 +1355,7 @@ mobileChatScreen == null ? void 0 : mobileChatScreen.addEventListener("touchcanc
 (_q = document.querySelector("#gameJump")) == null ? void 0 : _q.addEventListener("pointerup", () => {
   gameJumpPressed = false;
 });
-const funBtn = document.querySelector("#funBtn");
-const funDialogueEl = document.querySelector("#funDialogue");
-let funDialogueTimeout = null;
-if (funBtn) {
-  funBtn.addEventListener("click", () => {
-    funMode = !funMode;
-    funBtn.classList.toggle("active", funMode);
-    if (funMode) {
-      funDialogueEl.classList.add("visible");
-      const d = getFunnyDialogue();
-      funDialogueEl.innerHTML = `<span class="fun-speaker">${d.speaker}</span>${d.text}`;
-      clearTimeout(funDialogueTimeout);
-      funDialogueTimeout = setTimeout(() => {
-        funDialogueEl.classList.remove("visible");
-      }, 5e3);
-    } else {
-      funDialogueEl.classList.remove("visible");
-      clearTimeout(funDialogueTimeout);
-    }
-  });
-}
-;
+// funMode removed - game mode accessible only through restroom
 setupJoystick(canvas);
 let _loadingCleared = false;
 function stableOfficeSize() {

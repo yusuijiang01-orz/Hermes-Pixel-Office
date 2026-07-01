@@ -49,3 +49,53 @@ Week: 2026-07-01 to 2026-07-05
 - Version bump: blocked. `index.html` already had unrelated pre-existing one-line/minified dirty edits before this run, so a scoped version-only stage cannot be made without also staging unrelated prior changes. Current visible version remains v1.25.
 - GitHub status: committed and pushed documentation update to `origin/main` as `a97fc9d`; version bump was intentionally not staged because of the blocker above.
 - Next suggested step: add the documented single frontend helper in `scripts/chat-ui.js` only after deciding how to isolate or commit the existing dirty frontend changes.
+
+### 00:49 +08:00 Hourly Loop
+
+- Chosen task: fixed the visible game-universe dungeon doorway failing when the page was opened from a `file://` URL.
+- Files changed: `projects/companyverse/index.html`, `docs/pixel-universe-weekly-progress-2026-07-01.md`.
+- Behavior changed: Companyverse route jumps now use `http://127.0.0.1:8777` when the current page is a local file, so the dungeon doorway no longer resolves to missing `file:///C:/index.html?room=game`.
+- Verification: ran the Companyverse inline script through `node --check`; confirmed `http://127.0.0.1:8777/index.html?room=game` returns HTTP 200; browser smoke check showed `room-game` active, loading overlay cleared, realtime sync text present, and no console errors.
+- Version bump: blocked. `index.html` had unrelated pre-existing dirty/minified changes before this run, so bumping or staging it would risk mixing unrelated edits. Current visible version remains v1.25.
+- GitHub status: not committed or pushed because the required version bump is blocked by pre-existing dirty `index.html` content and this run must not stage unrelated changes.
+- Next suggested step: ask the user to open `http://127.0.0.1:8777/projects/companyverse/index.html` instead of a `file://` URL, then press O near the dungeon sign.
+
+### 00:58 +08:00 Hourly Loop
+
+- Chosen task: fixed the most damaging mobile dungeon playability problems from the user screenshot.
+- Files changed: `scripts/core.js`, `styles/index.css`, `docs/pixel-universe-weekly-progress-2026-07-01.md`.
+- Behavior changed: mobile `room=game` now uses a phone-width canvas instead of the 960px office canvas, hides office chat/tip overlays, keeps a pixel-style joystick visible, labels the action buttons as `跳` and `斩`, and positions the player/enemies inside the visible phone viewport.
+- Verification: ran `node --check scripts\core.js`; browser smoke at 390x844 confirmed canvas 390x844, joystick visible, actions visible, tip hidden, loading cleared, realtime sync present, and no console errors.
+- Version bump: blocked. `index.html` still has unrelated pre-existing dirty/minified changes, so changing or staging the cache/version chip would mix unrelated work. Current visible version remains v1.25.
+- GitHub status: not committed or pushed because the required version bump remains blocked by pre-existing dirty `index.html`.
+- Next suggested step: test on the real phone from `http://127.0.0.1:8777/index.html?room=game` after refresh; if the combat still feels poor, replace this prototype with a dedicated small mobile dungeon scene instead of stretching office controls further.
+
+### 01:09 +08:00 Hourly Loop
+
+- Chosen task: fixed the mobile dungeon visibility and feedback issues reported after the first mobile pass.
+- Files changed: `scripts/core.js`, `scripts/office-scene.js`, `index.html`, `docs/pixel-universe-weekly-progress-2026-07-01.md`.
+- Behavior changed: direct `room=game` entry now reliably applies `room-game` UI state, canvas resizes after the mobile dungeon layout is applied, the dungeon renders a visible level frame, player, enemies, HP/progress HUD, and MAP panel, touch buttons trigger jump/slash, death can restart from jump/slash, and jumping legs now follow the player body instead of sticking to the floor.
+- Verification: ran `node --check scripts\core.js` and `node --check scripts\office-scene.js`; browser 390x844 smoke showed `body.room-game`, hidden header, active action buttons, cache-busted `core.js?v=split-20260629g-dungeonfix6`, loading cleared, and no console errors. Visual screenshot confirmed visible room frame, player, HUD, and MAP.
+- Version bump: blocked. `index.html` still contains unrelated pre-existing dirty/minified changes, so only resource cache strings were changed to make this fix visible without attempting a full version bump. Current visible version remains v1.25.
+- GitHub status: not committed or pushed because the version bump and scoped staging remain blocked by pre-existing dirty `index.html`.
+- Next suggested step: real-phone playtest for touch feel and death/restart; then replace the placeholder combat with a purpose-built 30-second dungeon encounter if it still feels weak.
+
+### 01:02 +08:00 Hourly Loop
+
+- Chosen task: wrote the smallest intent-capture visibility checklist from today's chat stability and intent capture focus.
+- Files changed: `docs/pixel-universe-intent-capture-visibility-checklist-2026-07-02.md`, `docs/pixel-universe-weekly-progress-2026-07-01.md`.
+- Behavior changed: no runtime behavior changed; the next code step now has a precise frontend-only acceptance checklist for making a game idea visible within 30 seconds.
+- Verification: documentation-only change; reviewed required docs, checked `git status --short`, inspected dirty `index.html`/progress state, and confirmed the new checklist names the canonical prompt and light verification command.
+- Version bump: blocked. `index.html` remains a pre-existing dirty/minified one-line file with unrelated changes, so bumping from v1.25 to v1.26 would require staging unrelated content.
+- GitHub status: not committed or pushed because the required progress file also contains previous uncommitted hourly notes; staging it would mix work from earlier runs.
+- Next suggested step: isolate or accept the existing dirty `index.html` and progress notes, then implement the `scripts/chat-ui.js` intent label helper and bump the visible version.
+
+### 01:14 +08:00 Hourly Loop
+
+- Chosen task: wrote the smallest manual smoke script for today's chat stability and intent capture focus.
+- Files changed: `docs/pixel-universe-intent-capture-smoke-script-2026-07-02.md`, `docs/pixel-universe-weekly-progress-2026-07-01.md`.
+- Behavior changed: no runtime behavior changed; this gives the next code run a concrete 30-second pass/fail path for the canonical game-idea prompt.
+- Verification: documentation-only change; reviewed required docs, checked `git status --short`, inspected the existing dirty `index.html` and progress-log diffs, and avoided editing dirty frontend/backend/state files.
+- Version bump: blocked. `index.html` still has pre-existing unrelated dirty/minified content and remains at v1.25, so a safe v1.26-only stage is not available in this run.
+- GitHub status: not committed or pushed because staging the already-dirty progress log would include prior uncommitted hourly notes, and the required version bump remains blocked.
+- Next suggested step: isolate or accept the existing dirty progress/index changes, then implement the `scripts/chat-ui.js` intent label helper and run this smoke script.

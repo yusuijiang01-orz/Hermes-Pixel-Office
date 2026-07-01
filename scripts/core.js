@@ -47,65 +47,7 @@ const sendLocks = /* @__PURE__ */ new Set();
 let _lastRenderVersion = 0, _prevPrivateHash = "", _prevGroupHash = "", _renderedChatMode = "";
 const attachmentDrafts = { desktop: [], mobile: [] };
 let stickerStore = [];
-let funMode = false;
-let funModeUntil = 0;
-let funDialogueTimer = 0;
-let funDialogueIndex = 0;
-let funLastDialogue = 0;
-const FUN_DIALOGUES = {
-  default: [
-    // 阿默的搞笑台词
-    "代码能跑但不知道为什么能跑，这就是搞笑。",
-    "我刚把咖啡机连上了GitHub，现在它会自动commit。",
-    "制冰机刚报了个bug：冰块生成速度超出预期。",
-    "我在后台修东西，修着修着就把微波炉也修了。",
-    "柯基刚才踩了我的键盘，deploy了一个新版本。",
-    "水吧的奶茶机我加了容错，现在它不会把珍珠煮成水泥了。",
-    "我刚给鱼缸写了个监控脚本，鱼翻白眼会被记录到Jira。",
-    "老板说搞笑，我就把老板办公室的门把手改成了笑脸。"
-  ],
-  planner: [
-    // 小韩的搞笑台词
-    "搞什么飞机？我查了一下，咱们公司没有飞机，只有奶茶机。",
-    "我刚把站会改成了搞笑大会，效果很好，大家都笑了。",
-    "水吧那台制冰机最近确实挺有节目效果的，每半小时响一次。",
-    '我把搞笑模式加到了排期里，排在"修复已知bug"后面。',
-    "柯基已经是我们团队第三个全职员工了，虽然还没发工资。",
-    "鱼缸里的鱼今天翻了三次白眼，我建议给它加个绩效考核。",
-    "微波炉加热吐司的时候，我会想起Relicbound的第一个Boss战。",
-    '老板说搞笑，我就把看板上的"阻塞"全部改成了"搞笑中"。'
-  ],
-  researcher: [
-    // 小研的搞笑台词
-    "上次老板突然发搞笑，我第一反应是制冰机又卡住了。",
-    "数据表明，办公室搞笑频率和咖啡消耗量呈正相关。",
-    "我刚做了一个搞笑指数热力图，小文的工位最高。",
-    "鱼缸翻白眼的频率可以作为公司压力的量化指标。",
-    "制冰机的噪音分贝在搞笑模式下会上升15%。",
-    "柯基的摇尾巴频率和搞笑模式的开关状态有显著相关性。",
-    "奶茶机的使用频次在搞笑模式下下降了，因为大家都在笑。",
-    "经过三轮A/B测试，搞笑模式下的bug率反而降低了。"
-  ],
-  writer: [
-    // 小文的搞笑台词
-    "昨天鱼缸里的鱼盯着我看了半小时，我怀疑它在等人物传记。",
-    "程序员搞笑是代码能跑但不知道为什么能跑，对吧？",
-    "老板你先抛个梗啊，别光说两个字就跑。",
-    "柯基刚才在键盘上踩了两下，我把它当成了新剧情。",
-    '微波炉的"嘭"声我已经改成搞笑音效了，现在听起来像放屁。',
-    "我给鱼缸的鱼起了名字，每条都对应一个Relicbound的NPC。",
-    '搞笑模式的UI文案我想好了："本办公室已启用欢乐协议"。',
-    "制冰机和微波炉的声音撞了，玩家老以为按错了，这次我故意不改。"
-  ]
-};
-function getFunnyDialogue() {
-  const ids = ["default", "planner", "researcher", "writer"];
-  const sid = ids[funDialogueIndex % 4];
-  const lines = FUN_DIALOGUES[sid];
-  const line = lines[funDialogueIndex % lines.length];
-  funDialogueIndex++;
-  return { speaker: ids[sid] === "default" ? "阿默" : ids[sid] === "planner" ? "小韩" : ids[sid] === "researcher" ? "小研" : "小文", short: ids[sid] === "default" ? "阿默" : ids[sid] === "planner" ? "小韩" : ids[sid] === "researcher" ? "小研" : "小文", text: line };
-}
+// funMode removed per boss requirement
 try {
   stickerStore = JSON.parse(localStorage.getItem("hermes-stickers") || "[]");
 } catch (e) {
@@ -459,6 +401,8 @@ function drawGameRoom(w, h, t) {
 
 // === 像素小地牢 demo: 可玩角色 + 敌人 + hit-stop 打击感 ===
 const DUNGEON = {
+  w: 960,
+  h: 720,
   groundY: 0,        // ground y (set at init)
   player: { x:0, y:0, hp:100, atk:25, dir:1, attackCD:0, attackAnim:0, hitStop:0, dead:false, score:0, kills:0 },
   enemies: [],
@@ -467,10 +411,15 @@ const DUNGEON = {
   hitStopTimer: 0,
   screenShake: { x:0, y:0, intensity:0 },
   floor: 1,
-  init() {
-    this.groundY = h * 0.7;
+  setViewport(viewW, viewH) {
+    this.w = Number(viewW) || this.w || 960;
+    this.h = Number(viewH) || this.h || 720;
+    this.groundY = this.h * (this.w < 620 ? 0.62 : 0.7);
+  },
+  init(viewW, viewH) {
+    this.setViewport(viewW, viewH);
     const p = this.player;
-    p.x = w * 0.3; p.y = this.groundY; p.hp = 100; p.dead = false;
+    p.x = this.w * (this.w < 620 ? 0.28 : 0.3); p.y = this.groundY; p.hp = 100; p.dead = false;
     p.score = 0; p.kills = 0;
     this.enemies = [];
     this.particles = [];
@@ -481,8 +430,9 @@ const DUNGEON = {
     const n = Math.min(2 + floor, 5);
     for (let i = 0; i < n; i++) {
       const slot = i / n;
+      const startX = this.w < 620 ? this.w * 0.58 + slot * this.w * 0.28 : this.w * 0.55 + slot * this.w * 0.35;
       this.enemies.push({
-        x: w * 0.55 + slot * w * 0.35,
+        x: startX,
         y: this.groundY,
         hp: 20 + floor * 10,
         maxHp: 20 + floor * 10,
@@ -541,20 +491,48 @@ const DUNGEON = {
   },
   jump() {
     const p = this.player;
-    if (p.dead) return;
+    if (p.dead) {
+      this.init(this.w, this.h);
+      return;
+    }
     if (p.y >= this.groundY - 1) {
-      p.jumpVel = -5;
+      p.jumpVel = this.w < 620 ? -7 : -5;
     }
   },
+  restart() {
+    this.init(this.w, this.h);
+  },
   update(dt, t) {
+    const viewW = this.w || 960;
     const p = this.player;
-    if (p.dead) return;
+    if (p.dead) {
+      if (gameJumpPressed || gameInteractPressed) {
+        gameJumpPressed = false;
+        gameInteractPressed = false;
+        this.restart();
+      }
+      return;
+    }
     // hit-stop
     if (this.hitStopFrames > 0) {
       this.hitStopFrames--;
       // still render but skip all logic
       return;
     }
+    // player movement from joystickDir (continuous)
+    const moveSpeed = 2.5;
+    if (joystickDir.x !== 0 || joystickDir.y !== 0) {
+      p.x += joystickDir.x * moveSpeed;
+      if (joystickDir.x > 0) p.dir = 1;
+      else if (joystickDir.x < 0) p.dir = -1;
+    }
+    if (gameJumpPressed) this.jump();
+    if (gameInteractPressed) {
+      this.attack();
+      gameInteractPressed = false;
+    }
+    // boundary clamp
+    p.x = Math.max(15, Math.min(viewW - 15, p.x));
     // attack CD
     if (p.attackCD > 0) p.attackCD = Math.max(0, p.attackCD - dt);
     if (p.attackAnim > 0) p.attackAnim -= dt;
@@ -623,7 +601,7 @@ const DUNGEON = {
       }
       if (e.state === "chase" && dist > 25) {
         e.x += Math.sign(dx) * 0.4;
-        e.x = Math.max(w * 0.15, Math.min(w * 0.85, e.x));
+        e.x = Math.max(viewW * 0.15, Math.min(viewW * 0.85, e.x));
       }
       if (e.state === "attack") {
         e.stateTimer -= dt;
@@ -793,10 +771,11 @@ const DUNGEON = {
 };
 
 function drawDungeon(w, h, t) {
+  DUNGEON.setViewport(w, h);
   // background
   px(0, 0, w, h, "#1a1c20");
   // floor
-  const groundY = h * 0.7;
+  const groundY = DUNGEON.groundY || h * (w < 620 ? 0.62 : 0.7);
   for (let y = groundY; y < h; y += 20) {
     for (let x = 0; x < w; x += 20) {
       const off = Math.floor(y / 20) % 2 * 10;
@@ -808,6 +787,19 @@ function drawDungeon(w, h, t) {
   px(w - 8, 0, 8, h, "#222428");
   // ceiling
   px(0, 0, w, 12, "#2a2a32");
+  const doorTop = Math.max(70, h * 0.12);
+  px(16, doorTop, Math.max(60, w * 0.16), 10, "#4f4230");
+  px(16, doorTop + 10, 8, groundY - doorTop - 10, "#4f4230");
+  px(w - Math.max(84, w * 0.18), doorTop, Math.max(68, w * 0.17), 10, "#4f4230");
+  px(w - 24, doorTop + 10, 8, groundY - doorTop - 10, "#4f4230");
+  px(24, groundY - 28, 40, 28, "#111418");
+  px(w - 64, groundY - 30, 42, 30, "#111418");
+  ctx.fillStyle = "#8d7a4b";
+  ctx.font = "bold 10px Microsoft YaHei";
+  ctx.textAlign = "center";
+  ctx.fillText("入口", 44, groundY - 36);
+  ctx.fillText("下一层", w - 43, groundY - 38);
+  ctx.textAlign = "left";
   for (let x = 20; x < w; x += 80) {
     px(x, 0, 10, 12, "#2a2a30");
     px(x + 10, 3, 6, 6, "#3a3a40");
@@ -842,28 +834,33 @@ function drawDungeon(w, h, t) {
 
 function drawDungeonPlayer(p, w, groundY, t) {
   const y = p.y;
+  const mobileScale = w < 620 ? 1.35 : 1;
+  const oldPx = px;
+  const spritePx = (x, y2, ww, hh, c) => oldPx(p.x + (x - p.x) * mobileScale, y + (y2 - y) * mobileScale, ww * mobileScale, hh * mobileScale, c);
   ctx.save();
   if (p.dir < 0) ctx.translate(p.x * 2, 0);
   // shadow
   px(p.x - 8, groundY + 2, 16, 4, "rgba(0,0,0,0.3)");
   // body
-  px(p.x - 7, y - 18, 14, 18, "#4a6a7a");
-  px(p.x - 5, y - 14, 10, 10, "#5a7a8a");
+  spritePx(p.x - 7, y - 18, 14, 18, "#4a6a7a");
+  spritePx(p.x - 5, y - 14, 10, 10, "#5a7a8a");
   // head
-  px(p.x - 5, y - 28, 10, 10, "#f0c888");
-  px(p.x - 3, y - 26, 2, 2, "#2a3a40");
-  px(p.x + 1, y - 26, 2, 2, "#2a3a40");
+  spritePx(p.x - 5, y - 28, 10, 10, "#f0c888");
+  spritePx(p.x - 3, y - 26, 2, 2, "#2a3a40");
+  spritePx(p.x + 1, y - 26, 2, 2, "#2a3a40");
   // helmet
-  px(p.x - 6, y - 30, 12, 4, "#6a7a80");
-  px(p.x - 4, y - 32, 8, 3, "#7a8a90");
+  spritePx(p.x - 6, y - 30, 12, 4, "#6a7a80");
+  spritePx(p.x - 4, y - 32, 8, 3, "#7a8a90");
   // legs
-  px(p.x - 5, groundY, 3, 3, "#3a4a50");
-  px(p.x + 2, groundY, 3, 3, "#3a4a50");
+  const air = Math.max(0, groundY - y);
+  const legLift = air > 2 ? 5 : 0;
+  spritePx(p.x - 5, y - legLift, 3, 5, "#3a4a50");
+  spritePx(p.x + 2, y - legLift, 3, 5, "#3a4a50");
   // sword
   const swordX = p.x + 10, swordY = y - 16;
   if (p.attackAnim > 0) {
-    px(swordX, swordY, 2, 16, "#c0c0c0");
-    px(swordX - 2, swordY - 1, 6, 3, "#808080");
+    spritePx(swordX, swordY, 2, 16, "#c0c0c0");
+    spritePx(swordX - 2, swordY - 1, 6, 3, "#808080");
     ctx.save();
     ctx.strokeStyle = "rgba(244,201,93,0.6)";
     ctx.lineWidth = 2;
@@ -872,8 +869,8 @@ function drawDungeonPlayer(p, w, groundY, t) {
     ctx.stroke();
     ctx.restore();
   } else {
-    px(swordX, swordY, 2, 14, "#c0c0c0");
-    px(swordX - 2, swordY - 1, 6, 3, "#808080");
+    spritePx(swordX, swordY, 2, 14, "#c0c0c0");
+    spritePx(swordX - 2, swordY - 1, 6, 3, "#808080");
   }
   ctx.restore();
   // HP bar
@@ -915,14 +912,55 @@ function drawDungeonEnemy(e, t, groundY) {
 
 function drawDungeonUI(w, h, t) {
   const p = DUNGEON.player;
+  const alive = DUNGEON.enemies.filter(e => !e.dead && e.hp > 0).length;
+  const total = Math.max(1, DUNGEON.enemies.length);
+  const mobile = w < 620;
+  const hudY = mobile ? 112 : 12;
+  const panelW = mobile ? 132 : 150;
+  px(10, hudY, panelW, 44, "#11181c");
+  px(13, hudY + 3, panelW - 6, 38, "#202b30");
   ctx.fillStyle = "#f4c95d";
-  ctx.font = "bold 10px monospace";
+  ctx.font = "bold " + (mobile ? 12 : 10) + "px monospace";
   ctx.textAlign = "left";
-  ctx.fillText("LV." + DUNGEON.floor + "  kills:" + p.kills + " score:" + p.score, 8, 18);
+  ctx.fillText("B" + DUNGEON.floor + "  KO:" + p.kills + "  " + p.score, 18, hudY + 15);
+  px(18, hudY + 21, panelW - 24, 7, "#2a1a1a");
+  px(19, hudY + 22, (panelW - 26) * Math.max(0, p.hp / 100), 5, "#e76f51");
+  px(18, hudY + 32, panelW - 24, 5, "#283238");
+  px(19, hudY + 33, (panelW - 26) * ((total - alive) / total), 3, "#f4c95d");
+  const mapW = mobile ? 116 : 122, mapH = mobile ? 50 : 40;
+  const mapX = w - mapW - 12, mapY = mobile ? 112 : 30;
+  px(mapX, mapY, mapW, mapH, "#11181c");
+  px(mapX + 3, mapY + 3, mapW - 6, mapH - 6, "#f4c95d");
+  px(mapX + 6, mapY + 6, mapW - 12, mapH - 12, "#202b30");
+  ctx.fillStyle = "#f4c95d";
+  ctx.font = "bold 9px monospace";
+  ctx.textAlign = "left";
+  ctx.fillText("MAP", mapX + 10, mapY + 17);
+  px(mapX + 10, mapY + mapH - 19, mapW - 20, 6, "#4a3b27");
+  px(mapX + 10, mapY + mapH - 22, 8, 12, "#6ec3a0");
+  px(mapX + mapW - 20, mapY + mapH - 22, 8, 12, "#f4c95d");
+  const playerMark = mapX + 10 + Math.max(0, Math.min(1, p.x / Math.max(1, w))) * (mapW - 20);
+  px(playerMark - 2, mapY + mapH - 23, 4, 14, "#ffffff");
+  DUNGEON.enemies.forEach((e) => {
+    if (e.dead || e.hp <= 0) return;
+    const ex = mapX + 10 + Math.max(0, Math.min(1, e.x / Math.max(1, w))) * (mapW - 20);
+    px(ex - 2, mapY + mapH - 18, 4, 4, "#e76f51");
+  });
   ctx.textAlign = "right";
-  ctx.fillStyle = "#5a6a6a";
-  ctx.font = "8px Microsoft YaHei";
-  ctx.fillText("← → 移动  空格攻击  上跳跃  ESC返回", w - 8, 18);
+  ctx.fillStyle = mobile ? "#d8c06a" : "#5a6a6a";
+  ctx.font = (mobile ? "10px" : "8px") + " Microsoft YaHei";
+  ctx.fillText(mobile ? "左摇杆移动  斩/跳  倒地后按任意动作重开" : "← → 移动  空格攻击  上跳跃  ESC返回", w - 10, h - 10);
+  if (p.dead) {
+    ctx.fillStyle = "rgba(0,0,0,0.72)";
+    ctx.fillRect(0, 0, w, h);
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#e76f51";
+    ctx.font = "bold 24px Microsoft YaHei";
+    ctx.fillText("倒地了", w / 2, h * 0.42);
+    ctx.fillStyle = "#f4c95d";
+    ctx.font = "bold 13px Microsoft YaHei";
+    ctx.fillText("按 跳 或 斩 重新开始", w / 2, h * 0.42 + 34);
+  }
 }
 
 // game room state
@@ -930,7 +968,7 @@ let gameRoomState = { active: false, started: false };
 
 function initGameRoom() {
   if (!gameRoomState.started) {
-    DUNGEON.init();
+    DUNGEON.init(canvas.clientWidth, canvas.clientHeight);
     gameRoomState.started = true;
   }
   gameRoomState.active = true;
@@ -1910,6 +1948,51 @@ function setEditMode(next) {
   updateRoomUI();
   document.querySelector("#sceneTip").textContent = editMode ? "装修模式 — 物件已开启网格对齐（16px），拖动物件自动吸附网格" : "点击员工聊天，点工位看他忙啥";
 }
+// === Edit mode button handlers (desktop) ===
+document.addEventListener("DOMContentLoaded", () => {
+  const toggleBtn = document.getElementById("editToggle");
+  if (toggleBtn) toggleBtn.addEventListener("click", () => setEditMode(!editMode));
+  const saveBtn = document.getElementById("editSave");
+  if (saveBtn) saveBtn.addEventListener("click", async () => {
+    if (await commitCurrentEditSelection()) {
+      setEditMode(false);
+    }
+  });
+  const cancelBtn = document.getElementById("editCancel");
+  if (cancelBtn) cancelBtn.addEventListener("click", () => {
+    if (editMode) {
+      revertCurrentEditSelection("已取消本次移动");
+    }
+    setEditMode(false);
+  });
+  const resetBtn = document.getElementById("editReset");
+  if (resetBtn) resetBtn.addEventListener("click", () => {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    scenePositions = {};
+    loadScenePositions();
+    document.querySelector("#sceneTip").textContent = "已重置为默认布局";
+    if (editMode) syncMobileEditUi();
+  });
+  const fabBtn = document.getElementById("editFab");
+  if (fabBtn) fabBtn.addEventListener("click", () => {
+    setEditMode(!editMode);
+  });
+  const mobileConfirm = document.getElementById("mobileEditConfirm");
+  if (mobileConfirm) mobileConfirm.addEventListener("click", async () => {
+    if (editMode) {
+      if (await commitCurrentEditSelection()) {
+        setEditMode(false);
+      }
+    }
+  });
+  const mobileRevert = document.getElementById("mobileEditRevert");
+  if (mobileRevert) mobileRevert.addEventListener("click", () => {
+    if (editMode) {
+      revertCurrentEditSelection("已取消本次移动");
+    }
+    setEditMode(false);
+  });
+});
 canvas.addEventListener("mousedown", (e) => {
   if (!editMode) return;
   collisionWarning = "";
@@ -2058,40 +2141,9 @@ canvas.addEventListener("touchend", (e) => {
     officeTouch.lastY = e.touches[0].clientY;
   }
 }, { passive: false });
-document.getElementById("editToggle").addEventListener("click", () => {
-  setEditMode(!editMode);
-});
-document.getElementById("editFab").addEventListener("click", () => {
-  document.getElementById("editToggle").click();
-});
-document.getElementById("editCancel").addEventListener("click", () => {
-  collisionWarning = "";
-  if (revertCurrentEditSelection()) return;
-  setEditMode(false);
-  document.querySelector("#sceneTip").textContent = "已退出编辑模式";
-});
-document.getElementById("editSave").addEventListener("click", async () => {
-  try {
-    if (editSelected) await commitCurrentEditSelection();
-    else {
-      await persistScenePositions();
-      document.querySelector("#sceneTip").textContent = "布局已保存，当前画面已实时生效";
-    }
-  } catch (err) {
-    document.querySelector("#sceneTip").textContent = "保存出错：" + err.message;
-  }
-});
-document.getElementById("editReset").addEventListener("click", () => {
-  const w = canvas.clientWidth, h = canvas.clientHeight;
-  for (const obj of SCENE_OBJECTS) {
-    const def = obj.getDefault(w, h);
-    scenePositions[obj.id] = { x: def.x, y: def.y };
-  }
-  document.querySelector("#sceneTip").textContent = "已恢复出厂设置——小韩的默认布局回来了，再拖一次试试";
-  setTimeout(() => {
-    if (!editMode) document.querySelector("#sceneTip").textContent = "点击员工聊天，点工位看他忙啥";
-  }, 2e3);
-});
+// NOTE: Edit mode button event handlers are now attached inside
+// document.addEventListener("DOMContentLoaded", ...) to avoid duplicate
+// bindings that cause save/double-fire crashes.
 function drawAgent(a, t) {
   const r = roles[a.id], x = a.x, y = a.y, bob = a.moving ? Math.sin(t / 110 + a.seed) * 1.5 : 0, seated = ["working", "deskIdle", "phone", "orderFood"].includes(a.mode);
   ctx.save();
@@ -2360,7 +2412,27 @@ function goCompanyHome() {
 function setupJoystick(canvas2) {
   const joystick = document.getElementById("virtualJoystick");
   const thumb = document.getElementById("joystickThumb");
+  const jumpBtn = document.getElementById("gameJump");
+  const interactBtn = document.getElementById("gameInteract");
   let startX = 0, startY = 0;
+  jumpBtn == null ? void 0 : jumpBtn.addEventListener("pointerdown", (e) => {
+    if (currentRoom !== "game") return;
+    e.preventDefault();
+    gameJumpPressed = true;
+    DUNGEON.jump();
+  });
+  jumpBtn == null ? void 0 : jumpBtn.addEventListener("pointerup", () => {
+    gameJumpPressed = false;
+  });
+  interactBtn == null ? void 0 : interactBtn.addEventListener("pointerdown", (e) => {
+    if (currentRoom !== "game") return;
+    e.preventDefault();
+    gameInteractPressed = true;
+    DUNGEON.attack();
+  });
+  interactBtn == null ? void 0 : interactBtn.addEventListener("pointerup", () => {
+    gameInteractPressed = false;
+  });
   canvas2.addEventListener("touchstart", (e) => {
     if (currentRoom !== "game") return;
     const touch = e.touches[0];
@@ -2442,7 +2514,11 @@ function updateRoomUI() {
   if (currentRoom === "game") {
     indicator.classList.add("visible");
     fab.style.display = "none";
-    if (tip) tip.textContent = "厕所/走廊模式：左上角“返回办公室”、Esc 或 × 都能退出。";
+    if (tip) tip.textContent = "地下城勇士：左摇杆移动，斩击打怪，跳跃躲开。";
+    const jumpBtn = document.getElementById("gameJump");
+    const interactBtn = document.getElementById("gameInteract");
+    if (jumpBtn) jumpBtn.textContent = "跳";
+    if (interactBtn) interactBtn.textContent = "斩";
   } else if (currentRoom === "boss") {
     indicator.classList.add("visible");
     fab.style.display = "none";
