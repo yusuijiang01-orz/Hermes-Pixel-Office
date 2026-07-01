@@ -139,3 +139,13 @@ Week: 2026-07-01 to 2026-07-05
 - Version bump: completed from v1.30 to v1.31.
 - GitHub status: committed and pushed `3eaf107` to `origin/main` as `推进像素宇宙 v1.31`.
 - Next suggested step: browser-smoke the canonical prompt and tap the generated mobile task card to confirm the source tag is visible in the detail sheet.
+
+### 05:02 +08:00 Hourly Loop
+
+- Chosen task: made the generated universe Coming Soon card traceable from today's chat stability and intent capture focus.
+- Files changed: `scripts/chat-ui.js`, `index.html`, `docs/pixel-universe-weekly-progress-2026-07-01.md`.
+- Behavior changed: recognized group-chat game ideas now carry `来自群聊游戏点子` into the mobile `宇宙沉淀` Coming Soon card line, matching the task-detail source tag.
+- Verification: ran `node --check scripts\chat-ui.js`; confirmed `index.html` contains matching desktop/mobile/window version strings for v1.32 and `chat-ui.js?v=split-20260629g-intent6`; ran `git diff --check -- scripts\chat-ui.js index.html`.
+- Version bump: completed from v1.31 to v1.32.
+- GitHub status: pending commit and push for this hourly run.
+- Next suggested step: browser-smoke the canonical prompt on mobile and check both the generated task detail and `宇宙沉淀` card show the group-chat source.
