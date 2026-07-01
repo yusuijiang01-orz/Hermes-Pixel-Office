@@ -209,7 +209,7 @@ function pixelUniverseIntentForText(text) {
   if (!value) return null;
   if (["老板", "摸鱼", "员工", "甩锅"].every((word) => value.includes(word)) && /Boss|boss|战/.test(value)) {
     return {
-      label: "游戏点子已捕获 · 任务/讨论/宇宙预览生成中",
+      label: "游戏点子已捕获：摸鱼追逐 Boss 战 · 任务/讨论/宇宙预览生成中",
       taskTitle: "Prototype: 摸鱼追逐 Boss 战",
       summary: "先做追逐、甩锅道具、追上后进入需求评审 Boss 战的可玩原型。",
       universeTitle: "Coming Soon: 摸鱼追逐 Boss 战",
@@ -226,7 +226,7 @@ function pixelUniverseIntentForText(text) {
   if (!(hasPlayAction && hasGameOutput) && !(hasMemeOrEmotion && hasGameOutput)) return null;
   const seed = compactText(value, 18).replace(/[。！？!?，,]+$/g, "") || "新游戏点子";
   return {
-    label: "游戏点子已捕获 · 任务/讨论/宇宙预览生成中",
+    label: `游戏点子已捕获：${seed} · 任务/讨论/宇宙预览生成中`,
     taskTitle: `Prototype: ${seed}`,
     summary: `把「${seed}」拆成 30 秒内能看懂的玩法、角色反馈和第一张任务卡。`,
     universeTitle: `Coming Soon: ${seed}`,
