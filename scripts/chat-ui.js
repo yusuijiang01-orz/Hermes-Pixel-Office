@@ -208,6 +208,10 @@ function isPixelUniverseDemoPitch(text) {
   const value = cleanSpeechText(text || "");
   return ["老板", "摸鱼", "员工", "甩锅"].every((word) => value.includes(word)) && /Boss|boss|战/.test(value);
 }
+function renderGameIdeaIntentBadge(message) {
+  if (!message || message.mode !== "group" || message.origin !== "boss" || !isPixelUniverseDemoPitch(message.prompt)) return "";
+  return '<div class="game-idea-intent">识别为游戏点子 · 摸鱼追逐 Boss 战</div>';
+}
 function currentPixelUniverseDemoPreview(messages = (state == null ? void 0 : state.messages) || []) {
   const anchor = (messages || []).slice().sort((a, b) => (b.created || 0) - (a.created || 0)).find((msg) => (msg == null ? void 0 : msg.mode) === "group" && (msg == null ? void 0 : msg.origin) === "boss" && isPixelUniverseDemoPitch(msg.prompt));
   const idBase = String((anchor == null ? void 0 : anchor.id) || (anchor == null ? void 0 : anchor.created) || "seed").replace(/[^\w-]/g, "-"), created = Number((anchor == null ? void 0 : anchor.created) || 1782921600);
@@ -592,7 +596,7 @@ function renderMobileChatScreen() {
     const boss = msgs.find((m) => m.origin === "boss" && m.prompt) || msgs.find((m) => m.prompt);
     const html = [];
     let displayTs = 0;
-    if (boss) html.push(`<div class="msg-wrapper" data-msg-id="boss-${esc(key)}"><div class="bubble mine">${messageTextHtml(boss.prompt, boss.attachments)}${renderOwnBubbleMeta(boss)}</div></div>`);
+    if (boss) html.push(`<div class="msg-wrapper" data-msg-id="boss-${esc(key)}"><div class="bubble mine">${messageTextHtml(boss.prompt, boss.attachments)}${renderGameIdeaIntentBadge(boss)}${renderOwnBubbleMeta(boss)}</div></div>`);
     msgs.forEach((m) => {
       const speaker = (m.name || "员工").split(" ").slice(-1)[0], cl = validChatLines(m);
       if (cl.length) {
@@ -979,7 +983,7 @@ function renderChat() {
       const boss = msgs.find((m) => m.origin === "boss" && m.prompt) || msgs.find((m) => m.prompt);
       const html = [];
       let displayTs = 0;
-      if (boss) html.push(`<div class="msg-wrapper" data-msg-id="boss-${esc(conv)}"><div class="bubble mine">${messageTextHtml(boss.prompt, boss.attachments)}${renderOwnBubbleMeta(boss)}</div></div>`);
+      if (boss) html.push(`<div class="msg-wrapper" data-msg-id="boss-${esc(conv)}"><div class="bubble mine">${messageTextHtml(boss.prompt, boss.attachments)}${renderGameIdeaIntentBadge(boss)}${renderOwnBubbleMeta(boss)}</div></div>`);
       msgs.forEach((m) => {
         const short = (m.name || "员工").split(" ").slice(-1)[0], cl = validChatLines(m);
         if (cl.length) {
