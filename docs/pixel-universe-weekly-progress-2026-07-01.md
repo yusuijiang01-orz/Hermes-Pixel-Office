@@ -129,3 +129,13 @@ Week: 2026-07-01 to 2026-07-05
 - Version bump: completed from v1.29 to v1.30.
 - GitHub status: pending commit and push for this hourly run.
 - Next suggested step: run the browser smoke script with the canonical prompt and check whether the generated progress report appears without refreshing.
+
+### 04:06 +08:00 Hourly Loop
+
+- Chosen task: made the temporary Pixel Universe task more traceable from today's chat stability and intent capture focus.
+- Files changed: `scripts/chat-ui.js`, `index.html`, `docs/pixel-universe-weekly-progress-2026-07-01.md`.
+- Behavior changed: recognized group-chat game ideas now add a `source_note` to the generated task, and the mobile task detail sheet shows `来自群聊游戏点子` in the task meta tags.
+- Verification: ran `node --check scripts\chat-ui.js`; confirmed `index.html` contains matching desktop/mobile/window version strings for v1.31 and `chat-ui.js?v=split-20260629g-intent5`; ran `git diff --check -- scripts\chat-ui.js index.html`.
+- Version bump: completed from v1.30 to v1.31.
+- GitHub status: pending commit and push for this hourly run.
+- Next suggested step: browser-smoke the canonical prompt and tap the generated mobile task card to confirm the source tag is visible in the detail sheet.

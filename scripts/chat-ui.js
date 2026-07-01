@@ -261,6 +261,7 @@ function currentPixelUniverseDemoPreview(messages = (state == null ? void 0 : st
       owner_short: "小韩",
       kind: "collab",
       status: "todo",
+      source_note: "来自群聊游戏点子",
       created
     },
     universe: {
@@ -542,8 +543,9 @@ function renderMobileTaskSheet() {
     `<span class="mobile-kanban-tag">${esc(taskOwnerName(task))}</span>`,
     `<span class="mobile-kanban-tag ${esc(task.status || "todo")}">${esc(taskStatusLabel(task.status))}</span>`,
     `<span class="mobile-kanban-tag">${esc(taskKindLabel(task.kind))}</span>`,
+    task.source_note ? `<span class="mobile-kanban-tag">${esc(task.source_note)}</span>` : "",
     `<span class="mobile-kanban-tag">同步于 ${esc(taskTimelineText(task))}</span>`
-  ].join("");
+  ].filter(Boolean).join("");
 }
 function renderMobileChatScreen() {
   var _a2, _b2;
