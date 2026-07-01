@@ -240,7 +240,7 @@ async function sendChatMessage(inputSelector, mode, agentId) {
     status: "todo",
     created: createdAt,
     mode: "group",
-    conversation: "local-" + tempId,
+    conversation: "team",
     round: 1,
     origin: "boss",
     chat_lines: [],

@@ -597,7 +597,7 @@ function mergePendingMessages(realMessages) {
     if (real.some((msg) => msg.id === pending.id)) return false;
     if (pending.mode === "group" && pending.origin === "boss") {
       return !real.some(
-        (msg) => msg.mode === "group" && msg.origin === "boss" && msg.prompt === pending.prompt && msg.conversation === pending.conversation
+        (msg) => msg.mode === "group" && msg.origin === "boss" && msg.prompt === pending.prompt && Math.abs((msg.created || 0) - (pending.created || 0)) <= 45
       );
     }
     return !real.some(
