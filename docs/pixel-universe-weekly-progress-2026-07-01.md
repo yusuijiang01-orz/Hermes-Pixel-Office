@@ -37,3 +37,15 @@ Week: 2026-07-01 to 2026-07-05
 - Verification: documentation-only product task; confirmed `index.html` now contains matching `buildVersion`, `mobileBuildVersion`, and `window.__hermesVersion` strings for v1.25.
 - GitHub status: commit/push attempted after scoped staging; blocked if Git refuses because required docs are pre-existing untracked files or because remote auth/network fails.
 - Next suggested step: browser-smoke the canonical-input preview and adjust only confusing copy or spacing found in the first 30 seconds.
+
+## 2026-07-02
+
+### 00:03 +08:00 Hourly Loop
+
+- Chosen task: defined the smallest Pixel Universe intent-capture rules from today's chat stability and intent capture focus.
+- Files changed: `docs/pixel-universe-intent-capture-rules-v0.1-2026-07-02.md`, `docs/pixel-universe-weekly-progress-2026-07-01.md`.
+- Behavior changed: no runtime behavior changed; this narrows the next frontend helper to game idea, meme premise, and emotional beat recognition without touching persistence.
+- Verification: documentation-only change; reviewed required docs, checked `git status --short`, and avoided editing dirty frontend/backend/state files.
+- Version bump: blocked. `index.html` already had unrelated pre-existing one-line/minified dirty edits before this run, so a scoped version-only stage cannot be made without also staging unrelated prior changes. Current visible version remains v1.25.
+- GitHub status: pending scoped commit/push for this documentation update only; version bump is intentionally not staged because of the blocker above.
+- Next suggested step: add the documented single frontend helper in `scripts/chat-ui.js` only after deciding how to isolate or commit the existing dirty frontend changes.
