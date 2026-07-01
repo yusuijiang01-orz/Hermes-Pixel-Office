@@ -871,10 +871,11 @@ function renderChat() {
     const hash = `group:${dataHash}`;
     if (hash === _prevGroupHash && _lastRenderVersion && _renderedChatMode === "group") return;
     if (_renderedChatMode !== "group") box.innerHTML = "";
-    const items = all.filter((m) => isRenderableGroupMessage(m)), groups = /* @__PURE__ */ new Map();
+    const items = all.filter((m) => isRenderableGroupMessage(m) && (m.conversation || "team") === "team"), groups = /* @__PURE__ */ new Map();
     items.forEach((m) => {
-      if (!groups.has(m.conversation)) groups.set(m.conversation, []);
-      groups.get(m.conversation).push(m);
+      const conv = m.conversation || "team";
+      if (!groups.has(conv)) groups.set(conv, []);
+      groups.get(conv).push(m);
     });
     if (!groups.size) {
       box.innerHTML = '<div class="empty">群里还很安静。<br>发个话题，成员会接话、追问或互相讨论。</div>';
